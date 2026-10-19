@@ -26,7 +26,6 @@ import os
 import sys
 
 import trimesh
-
 from ws_root import workspace_root
 
 WS_DIR = workspace_root()

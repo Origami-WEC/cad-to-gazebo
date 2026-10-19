@@ -40,8 +40,8 @@ Schema del manifest (contratto con freecad_exporter.py e build_simulation.py)
     .activated
 """
 
-from dataclasses import dataclass, field
 import math
+from dataclasses import dataclass, field
 
 import numpy as np
 

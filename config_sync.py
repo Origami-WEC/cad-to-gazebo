@@ -36,7 +36,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 if __package__ in (None, ""):
     _src = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -132,7 +132,7 @@ def total_mass_kg(manifest: dict) -> float:
 
 def body_names(manifest: dict) -> List[str]:
     names = [b["name"] for b in manifest.get("bodies") or [] if b.get("name")]
-    names += [l["name"] for l in manifest.get("links") or [] if l.get("name")]
+    names += [link["name"] for link in manifest.get("links") or [] if link.get("name")]
     return names
 
 
@@ -216,7 +216,6 @@ def sync_pipeline_joints(manifest: dict, pipeline: dict,
     old_joints = {e.get("name"): e for e in (model.get("joints") or [])
                   if isinstance(e, dict) and e.get("name")}
 
-    names = [j["name"] for j in joints]
     new_dyn = {}
     if "$comment" in old_dyn:
         new_dyn["$comment"] = old_dyn["$comment"]

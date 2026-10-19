@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cad-to-gazebo"
+version = "0.1.0"
+description = "CAD -> IR -> collision hulls/materials -> SDF pipeline for the Origami WEC simulator"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Proprietary" }
+authors = [{ name = "Origami - Technology" }]
+keywords = ["cad", "freecad", "sdf", "gazebo", "wec", "simulation"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+]
+# Runtime dependencies only. FreeCAD is NOT here: it is supplied by the host
+# application (AppImage / conda), never by pip. See the "freecad" extra below.
+dependencies = [
+  "numpy>=1.23",
+]
+
+[project.optional-dependencies]
+# Marker extra for the CAD-export layer. FreeCAD itself is not installable from
+# PyPI, so this extra only pulls the pure-Python mesh helpers the export/demo
+# paths need; the exporter imports FreeCAD lazily and fails only when used.
+freecad = ["trimesh>=3.20"]
+dev = ["pytest>=7.0", "ruff>=0.5"]
+
+[tool.setuptools]
+# The repository root IS the "cad" package (consumed by maritime_ws as src/cad).
+package-dir = { "cad" = "." }
+packages = ["cad"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+# Foundation gate: pycodestyle errors/warnings, pyflakes, import sorting.
+# The FreeCAD-only modules (freecad_exporter.py, create_demo_model.py) cannot be
+# executed in CI (FreeCAD is not installable from pip) but are still linted for
+# the same rules; they currently pass without per-file exceptions.
+select = ["E", "F", "W", "I"]
+ignore = [
+  "E501",   # line length is advisory here; long config strings are intentional
+]
