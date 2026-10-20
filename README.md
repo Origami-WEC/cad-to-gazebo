@@ -52,6 +52,9 @@ pinned in three places:
   SDF ↔ URDF ↔ ROS name mapping and the sanitisation rules. One implementation
   (`cad.naming.sanitize`), no second variant: `freecad_exporter.py` binds it
   instead of carrying its own.
+* [`docs/sdf-artifacts.md`](docs/sdf-artifacts.md) — the SDF-ready artefact
+  (`cad.sdf_artifacts`): collision-hull ladder, PBR materials, aggregated
+  inertia, frames/anchors, the degradation table and the reproducibility gate.
 
 The validator is **fail-fast**: `freecad_exporter.py` and `create_demo_model.py`
 refuse to write a manifest that breaks the contract, `export_manifest.py` gates

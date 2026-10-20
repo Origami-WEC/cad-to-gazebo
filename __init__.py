@@ -11,12 +11,15 @@ run and are tested without it.
 The IR contract lives in :mod:`cad.ir_schema` (versioned JSON Schema +
 fail-fast validator) and :mod:`cad.naming` (the single implementation of the
 link/joint/frame naming rules). See ``docs/ir-v1.md`` and
-``docs/naming-contract.md``.
+``docs/naming-contract.md``. The SDF-ready artefact (collision hulls, PBR
+materials, inertia, frames/anchors) is produced by :mod:`cad.sdf_artifacts`
+from that IR; its contract is ``docs/sdf-artifacts.md``.
 """
 
 __all__ = [
     "material_props",
     "cad_assembly",
+    "sdf_artifacts",
     "config_sync",
     "export_manifest",
     "ir_schema",
