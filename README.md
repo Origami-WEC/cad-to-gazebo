@@ -27,12 +27,51 @@ imported lazily, only inside the export layer that actually runs under
 
 | Stage | Module | Role |
 |---|---|---|
-| CAD → IR | `freecad_exporter.py` | Runs under `freecadcmd`; reads the `.FCStd`, writes `config/cad_manifest.json` and the visual meshes. Cached on the source file SHA-256. |
-| IR | `config/cad_manifest.json` | The intermediate representation: bodies, joints (parent/child/axis/limits), solid poses and material cards. |
+| CAD → IR | `freecad_exporter.py` | Runs under `freecadcmd`; reads the `.FCStd`, writes `config/cad_manifest.json` and the visual meshes. Cached on the source file SHA-256. Validates the manifest before writing it. |
+| IR | `config/cad_manifest.json` | The intermediate representation: bodies, joints (parent/child/axis/limits), solid poses and material cards. Versioned contract: `schema/cad_ir_v1.schema.json`. |
+| IR contract | `ir_schema.py`, `naming.py` | The versioned JSON Schema + fail-fast validator, and the single implementation of the link/joint/frame naming rules. |
 | IR → hulls/materials | `cad_assembly.py`, `material_props.py` | Pose/joint maths; density and colour resolution from FreeCAD material cards or name keywords. |
 | IR → SDF | `export_manifest.py`, `config_sync.py` | Regenerates the manifest + meshes and reconciles the derived configs (`pipeline.json`, `hydrodynamics_params.json`, `mooring.json`). |
 | Demo fallback | `create_demo_model.py` | Builds a manifest without CAD when no `.FCStd` is available. |
 | STEP → IR (headless) | `step_import.py` | Reads a STEP AP242/AP214/AP203 exchange file with the OCCT kernel and emits the IR: named, located assemblies and parts, in millimetres. No FreeCAD, no GUI, no X. |
+
+## IR contract v1 (`cad-to-gazebo/cad-ir/1`)
+
+`config/cad_manifest.json` is a versioned document, not an implementation
+detail: the CAD front-end writes it, every emitter reads it. The contract is
+pinned in three places:
+
+* [`schema/cad_ir_v1.schema.json`](schema/cad_ir_v1.schema.json) — the JSON
+  Schema (draft 2020-12): `meta`, `bodies` (geometry, mass/inertia, materials),
+  `joints` (DOF topology), `frames`/LCS, `anchors` (sensor/jet mount points),
+  `sensors`, plus the legacy `links` shape for read-only compatibility.
+* [`docs/ir-v1.md`](docs/ir-v1.md) — section-by-section field contract,
+  versioning policy, the validator's two passes and where it runs, and the
+  documented pre-v1 → v1 migration.
+* [`docs/naming-contract.md`](docs/naming-contract.md) — who names what, the
+  SDF ↔ URDF ↔ ROS name mapping and the sanitisation rules. One implementation
+  (`cad.naming.sanitize`), no second variant: `freecad_exporter.py` binds it
+  instead of carrying its own.
+
+The validator is **fail-fast**: `freecad_exporter.py` and `create_demo_model.py`
+refuse to write a manifest that breaks the contract, `export_manifest.py` gates
+the manifest again before syncing the derived configs, and CI validates the
+shipped fixtures. Every violation is reported in one shot with a JSON-pointer
+path:
+
+```bash
+python -m cad.ir_schema config/cad_manifest.json     # exit 0 = valid, 1 = not
+python -m cad.ir_schema --allow-legacy old.json      # migrate in memory, then validate
+python -m cad.ir_schema --print-schema
+```
+
+```python
+from cad import ir_schema
+ir_schema.validate(manifest)          # raises IRSchemaError with .errors
+ir_schema.migrate_legacy(old_manifest)
+```
+
+`jsonschema` is a runtime dependency (the gate runs on every export).
 
 ## STEP import, headless (`cad.step_import`)
 
@@ -91,7 +130,7 @@ actually invoked without FreeCAD present.
 ## Run the tests
 
 ```bash
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev,freecad]"   # `freecad` = trimesh, for the demo path
 python -m pytest        # runs tests/ without FreeCAD and without maritime_ws
 ruff check .            # lint (same rules the CI enforces)
 ```

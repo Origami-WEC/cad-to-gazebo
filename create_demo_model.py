@@ -28,6 +28,12 @@ import sys
 import trimesh
 from ws_root import workspace_root
 
+try:
+    from cad import ir_schema
+except ImportError:  # standalone run from the repo root (no parent workspace)
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+    from cad import ir_schema
+
 WS_DIR = workspace_root()
 MANIFEST = os.path.join(WS_DIR, "config", "cad_manifest.json")
 
@@ -102,8 +108,11 @@ def create_demo_model(force=False):
                                SHAFT_COM_M)
 
     manifest = {
+        "schema": ir_schema.IR_SCHEMA,
         "meta": {
             "generator": "create_demo_model.py",
+            "emitter_version": ir_schema.emitter_version(),
+            "device_type": os.environ.get("MARITIME_DEVICE_TYPE", "point_absorber"),
             "source_document": "demo (nessun CAD)",
             "source_file": "",
             "source_hash": "",
@@ -151,6 +160,15 @@ def create_demo_model(force=False):
         ],
         "skipped_joints": [],
     }
+    try:
+        ir_schema.validate(manifest, source=MANIFEST)
+    except ir_schema.IRSchemaError as exc:
+        print("[demo] ERRORE: manifest demo non conforme allo schema IR v1:",
+              file=sys.stderr)
+        for msg in exc.errors:
+            print("  - " + msg, file=sys.stderr)
+        return 1
+
     os.makedirs(os.path.dirname(MANIFEST), exist_ok=True)
     with open(MANIFEST, "w") as fh:
         json.dump(manifest, fh, indent=2)

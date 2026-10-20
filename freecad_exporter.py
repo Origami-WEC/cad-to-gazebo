@@ -44,18 +44,21 @@ import hashlib
 import json
 import math
 import os
-import re
 import struct
 import sys
 
 import FreeCAD as App
 
 try:
+    from cad import ir_schema as ir_schema
     from cad import material_props as mp
+    from cad import naming
 except ImportError:
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                     ".."))
+    from cad import ir_schema as ir_schema
     from cad import material_props as mp
+    from cad import naming
 
 MAX_VERTICES = 300000
 MM_TO_M = 1.0e-3
@@ -94,19 +97,10 @@ def _read_config(ws):
         return json.load(fh)
 
 
-def _sanitize(name):
-    name = name.strip().lower().replace(" ", "_")
-    return re.sub(r"[^a-z0-9_]", "", name) or "link"
-
-
-def _unique_name(base, taken):
-    name = base
-    idx = 2
-    while name in taken:
-        name = "{}_{}".format(base, idx)
-        idx += 1
-    taken.add(name)
-    return name
+# Name sanitisation and uniqueness live in ONE place: cad.naming (see
+# docs/naming-contract.md). This module does not carry a second sanitiser.
+_sanitize = naming.sanitize
+_unique_name = naming.unique
 
 
 def _file_hash(path):
@@ -475,6 +469,23 @@ def _connector_placement(joint, which):
     return _chain(placement, offset)
 
 
+def _validate_ir(manifest):
+    """Fail-fast pre-write gate: the IR v1 contract, or nothing is written.
+
+    Nothing reaches config/cad_manifest.json (and therefore nothing reaches the
+    dependent configs) when the manifest breaks the contract: an emitter that
+    reads a half-valid IR is worse than a failed export.
+    """
+    try:
+        ir_schema.validate(manifest, source="config/cad_manifest.json")
+    except ir_schema.IRSchemaError as exc:
+        _err("EXPORT INTERROTTO: manifest IR non conforme allo schema v1:")
+        for msg in exc.errors:
+            _err("  - " + msg)
+        return False
+    return True
+
+
 def _sync_dependent_configs(ws, manifest):
     """Allinea pipeline/hydro/mooring al manifest appena scritto."""
     try:
@@ -618,8 +629,11 @@ def export_wec_cad_pipeline():
         root_body = bodies[0]["name"]
 
     manifest = {
+        "schema": ir_schema.IR_SCHEMA,
         "meta": {
             "generator": "freecad_exporter.py",
+            "emitter_version": ir_schema.emitter_version(),
+            "device_type": os.environ.get("MARITIME_DEVICE_TYPE", "generic"),
             "source_document": doc.Name,
             "source_file": os.path.relpath(source_path, ws)
             if source_path.startswith(ws) else source_path,
@@ -635,6 +649,9 @@ def export_wec_cad_pipeline():
         "joints": joints,
         "skipped_joints": skipped,
     }
+    if not _validate_ir(manifest):
+        return None
+
     path = os.path.join(ws, "config", "cad_manifest.json")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as fh:

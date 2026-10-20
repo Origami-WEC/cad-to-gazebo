@@ -31,13 +31,25 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      - name: Install package (editable) with dev extras
+      - name: Install package (editable) with dev and freecad extras
+        # `freecad` pulls only the pure-Python mesh helper (trimesh) used by the
+        # export/demo path, so the demo generator can be exercised end to end
+        # through the IR validator here instead of skipping. FreeCAD itself is
+        # still not installed and is still not imported by any test.
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+          python -m pip install -e ".[dev,freecad]"
 
       - name: Lint (ruff)
         run: ruff check .
+
+      - name: Validate the shipped IR fixtures (fail-fast validator)
+        # The IR contract gate: the validator is exercised here exactly the way
+        # the export path calls it. A non-zero exit fails the job.
+        run: |
+          python -m cad.ir_schema --print-schema > /dev/null
+          python -m cad.ir_schema tests/fixtures/cad_manifest_demo.json \
+                                  tests/fixtures/cad_manifest_full.json
 
       - name: Test (pytest)
         # No FreeCAD and no maritime_ws workspace in CI: the suite covers the
