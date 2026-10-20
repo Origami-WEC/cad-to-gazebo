@@ -49,7 +49,6 @@ import struct
 import sys
 
 import FreeCAD as App
-import Part
 
 try:
     from cad import material_props as mp
@@ -275,7 +274,8 @@ def _write_binary_stl(path, vertices, facets):
     with open(path, "wb") as fh:
         fh.write(b"\0" * 80)
         fh.write(struct.pack("<I", len(facets)))
-        pack3 = lambda v: struct.pack("<3f", v[0], v[1], v[2])
+        def pack3(v):
+            return struct.pack("<3f", v[0], v[1], v[2])
         for tri, n in zip(facets, normals):
             fh.write(pack3(n))
             for idx in tri:

@@ -1,30 +1,83 @@
-# cad-to-gazebo — FreeCAD to SDF/Gazebo converter
+# cad-to-gazebo
 
-Turns the mechanical design into a simulatable model: **FreeCAD assemblies →
-`cad_manifest.json` → collision hulls / visual meshes → SDF**, consumed by the
-Gazebo pipeline in `maritime_ws`.
+Turns the mechanical design into a simulatable model for the Origami WEC
+simulator. It sits between the CAD in `Mechanism` and the Gazebo pipeline in
+`maritime_ws`: it reads the FreeCAD assembly, writes a neutral intermediate
+representation, derives collision hulls and material properties from it, and
+emits the SDF-ready artefacts.
 
-## Layout
+The package is **installable and testable without FreeCAD**: the FreeCAD API is
+imported lazily, only inside the export layer that actually runs under
+`freecadcmd`. Everything else is plain Python.
 
-| File | What |
-|---|---|
-| `freecad_exporter.py` | Export from `.FCStd` via `freecadcmd` (cached on the file's SHA-256) |
-| `cad_assembly.py` | Assembly handling |
-| `export_manifest.py` | Regenerates `config/cad_manifest.json`, meshes and derived configs |
-| `config_sync.py` | `cad_manifest.json` → `pipeline.json`, `hydrodynamics_params.json`, `mooring.json` |
-| `material_props.py` | Material properties |
-| `create_demo_model.py` | Demo fallback when no CAD is available |
-
-## Chain
+## Pipeline
 
 ```
-cad/*.FCStd  --freecadcmd-->  config/cad_manifest.json + meshes/visual
-cad_manifest.json  --sync-->  config/pipeline.json
-                              config/hydrodynamics_params.json
-                              config/mooring.json
+   CAD                 IR                    hulls / materials           SDF
+  ─────────────       ──────────────────     ─────────────────────      ──────────────
+  cad/*.FCStd   ──▶   cad_manifest.json ──▶  meshes/visual/*.stl    ──▶  SDF model
+  (FreeCAD           (bodies, joints,        material_props              (links, joints,
+   assembly:          poses, materials)      cad_assembly                inertials)
+   joints, solids,                                                       │
+   poses, mats)                                                          ▼
+  ─────────────       ──────────────────     ─────────────────────      ──────────────
+  freecadcmd          export_manifest        cad_assembly               build_simulation
+  (FreeCAD layer)     (manifest + cache)     material_props             (maritime_ws)
 ```
 
-## Part of
+| Stage | Module | Role |
+|---|---|---|
+| CAD → IR | `freecad_exporter.py` | Runs under `freecadcmd`; reads the `.FCStd`, writes `config/cad_manifest.json` and the visual meshes. Cached on the source file SHA-256. |
+| IR | `config/cad_manifest.json` | The intermediate representation: bodies, joints (parent/child/axis/limits), solid poses and material cards. |
+| IR → hulls/materials | `cad_assembly.py`, `material_props.py` | Pose/joint maths; density and colour resolution from FreeCAD material cards or name keywords. |
+| IR → SDF | `export_manifest.py`, `config_sync.py` | Regenerates the manifest + meshes and reconciles the derived configs (`pipeline.json`, `hydrodynamics_params.json`, `mooring.json`). |
+| Demo fallback | `create_demo_model.py` | Builds a manifest without CAD when no `.FCStd` is available. |
 
-The Origami simulation stack — upstream of `maritime_ws`, downstream of the CAD
-in `Mechanism`.
+## Install
+
+```bash
+python -m pip install -e ".[dev]"     # editable + pytest + ruff
+```
+
+FreeCAD is **not** a pip dependency (it ships as an AppImage / conda build).
+The `freecad` extra only pulls the pure-Python mesh helpers used by the export
+and demo paths; the exporter imports FreeCAD lazily and fails only if it is
+actually invoked without FreeCAD present.
+
+## Run the tests
+
+```bash
+python -m pip install -e ".[dev]"
+python -m pytest        # runs tests/ without FreeCAD and without maritime_ws
+ruff check .            # lint (same rules the CI enforces)
+```
+
+The suite never imports FreeCAD. It injects minimal stand-ins for the
+`ws_root` module and the `mooring` helper that live in the parent workspace, so
+the pure units (`material_props`, `export_manifest`, `config_sync`) run in
+isolation. See `tests/conftest.py`.
+
+## How it is consumed by `maritime_ws`
+
+This repository is mounted as the `src/cad` submodule of `maritime_ws`, and its
+modules are imported as a package:
+
+```python
+from cad import cad_assembly, config_sync, export_manifest, material_props
+```
+
+The parent workspace provides the `ws_root` module (`workspace_root()`), which
+points at the `maritime_ws` root where `config/` and `meshes/` live. When the
+package runs standalone, `tests/conftest.py` supplies a stub for it.
+
+## Branch / PR convention
+
+- One branch per issue: `issue-<number>-<short-slug>`, cut from `main`.
+  This change lives on `issue-2-repo-foundation`.
+- Open the PR against `main`; the PR body documents the approach and any
+  discarded alternative.
+- CI (`.github/workflows/ci.yml`) runs `ruff` and `python -m pytest` on every
+  push and PR. A failing test returns a non-zero exit and fails the job — the
+  gate is real, not syntax-only.
+- Open design questions belong in PR review comments, not as `TODO`s in the
+  code or this README.
