@@ -1,0 +1,946 @@
+{
+  "anchors": [
+    {
+      "body": "pto_shaft",
+      "direction": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "frame": "pto_shaft",
+      "kind": "jet",
+      "name": "jet_pto_shaft_bottom",
+      "pose": [
+        0.0,
+        0.0,
+        -0.7,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "source": "ir"
+    },
+    {
+      "body": "hull",
+      "direction": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "frame": "hull",
+      "kind": "mooring",
+      "name": "mooring_hull_base",
+      "pose": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "source": "ir"
+    }
+  ],
+  "bodies": [
+    {
+      "collisions": [
+        {
+          "approximation": "box",
+          "collision_mesh": null,
+          "decimation_cell_m": null,
+          "faces": 0,
+          "fallback": false,
+          "geometry": {
+            "centre_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "cover": 1.0,
+            "size_m": [
+              2.0,
+              1.200000048,
+              0.800000012
+            ],
+            "type": "box",
+            "volume_m3": 1.920000105
+          },
+          "hull_inflation": 1.0,
+          "hull_volume_m3": 1.920000105,
+          "name": "hull__shell",
+          "pose": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "source_mesh": "meshes/visual/hull__shell.stl",
+          "volume_m3": 1.920000105,
+          "warnings": []
+        }
+      ],
+      "inertial": {
+        "com_m": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "inertia_kg_m2": [
+          [
+            2612.48,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            5827.84,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            6832.64
+          ]
+        ],
+        "mass_kg": 15072.0,
+        "num_solids": 1,
+        "pose": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "sdf": {
+          "ixx": 2612.48,
+          "ixy": 0.0,
+          "ixz": 0.0,
+          "iyy": 5827.84,
+          "iyz": 0.0,
+          "izz": 6832.64
+        },
+        "solids": [
+          {
+            "com_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "inertia_kg_m2": [
+              [
+                2612.48,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                5827.84,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                6832.64
+              ]
+            ],
+            "mass_kg": 15072.0,
+            "name": "hull__shell",
+            "pose": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        ],
+        "warnings": []
+      },
+      "label": "Hull",
+      "name": "hull",
+      "pose": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "visuals": [
+        {
+          "material": {
+            "albedo": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ],
+            "ambient": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ],
+            "card": "Steel",
+            "emissive": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "fallback": false,
+            "metalness": 0.9,
+            "roughness": 0.35
+          },
+          "mesh": "meshes/visual/hull__shell.stl",
+          "name": "hull__shell",
+          "pose": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "solid": "hull__shell"
+        }
+      ]
+    },
+    {
+      "collisions": [
+        {
+          "approximation": "cylinder",
+          "collision_mesh": null,
+          "decimation_cell_m": null,
+          "faces": 0,
+          "fallback": false,
+          "geometry": {
+            "axis": "z",
+            "centre_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "cover": 1.0,
+            "length_m": 1.399999976,
+            "radius_m": 0.119999999,
+            "type": "cylinder",
+            "volume_m3": 0.063334505
+          },
+          "hull_inflation": 1.00645453,
+          "hull_volume_m3": 0.063334505,
+          "name": "pto_shaft__mass",
+          "pose": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "source_mesh": "meshes/visual/pto_shaft__mass.stl",
+          "volume_m3": 0.062928332,
+          "warnings": []
+        }
+      ],
+      "inertial": {
+        "com_m": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "inertia_kg_m2": [
+          [
+            28.546129399,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            28.546129399,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.231222834
+          ]
+        ],
+        "mass_kg": 171.00317132,
+        "num_solids": 1,
+        "pose": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "sdf": {
+          "ixx": 28.546129399,
+          "ixy": 0.0,
+          "ixz": 0.0,
+          "iyy": 28.546129399,
+          "iyz": 0.0,
+          "izz": 1.231222834
+        },
+        "solids": [
+          {
+            "com_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "inertia_kg_m2": [
+              [
+                28.546129399,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                28.546129399,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                1.231222834
+              ]
+            ],
+            "mass_kg": 171.00317132,
+            "name": "pto_shaft__mass",
+            "pose": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        ],
+        "warnings": []
+      },
+      "label": "PTO shaft",
+      "name": "pto_shaft",
+      "pose": [
+        0.0,
+        0.0,
+        0.4,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "visuals": [
+        {
+          "material": {
+            "albedo": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ],
+            "ambient": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ],
+            "card": "Alluminio 6061",
+            "emissive": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "fallback": false,
+            "metalness": 0.85,
+            "roughness": 0.35
+          },
+          "mesh": "meshes/visual/pto_shaft__mass.stl",
+          "name": "pto_shaft__mass",
+          "pose": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "solid": "pto_shaft__mass"
+        }
+      ]
+    },
+    {
+      "collisions": [
+        {
+          "approximation": "sphere",
+          "collision_mesh": null,
+          "decimation_cell_m": null,
+          "faces": 0,
+          "fallback": false,
+          "geometry": {
+            "centre_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "cover": 1.0,
+            "radius_m": 0.499999999,
+            "type": "sphere",
+            "volume_m3": 0.523598771
+          },
+          "hull_inflation": 1.029047117,
+          "hull_volume_m3": 0.523598771,
+          "name": "float__buoy",
+          "pose": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "source_mesh": "meshes/visual/float__buoy.stl",
+          "volume_m3": 0.508819045,
+          "warnings": []
+        },
+        {
+          "approximation": "box",
+          "collision_mesh": null,
+          "decimation_cell_m": null,
+          "faces": 0,
+          "fallback": false,
+          "geometry": {
+            "centre_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "cover": 1.0,
+            "size_m": [
+              0.600000024,
+              0.600000024,
+              0.300000012
+            ],
+            "type": "box",
+            "volume_m3": 0.108000013
+          },
+          "hull_inflation": 1.000000001,
+          "hull_volume_m3": 0.108000013,
+          "name": "float__ballast",
+          "pose": [
+            0.0,
+            0.0,
+            -0.45,
+            0.707106781,
+            0.0,
+            0.0,
+            0.707106781
+          ],
+          "source_mesh": "meshes/visual/float__ballast.stl",
+          "volume_m3": 0.108000013,
+          "warnings": []
+        }
+      ],
+      "inertial": {
+        "com_m": [
+          0.0,
+          0.0,
+          -0.154159524
+        ],
+        "inertia_kg_m2": [
+          [
+            93.968716762,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            99.800716762,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            59.461883682
+          ]
+        ],
+        "mass_kg": 756.618836818,
+        "num_solids": 2,
+        "pose": [
+          0.0,
+          0.0,
+          -0.154159524,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "sdf": {
+          "ixx": 93.968716762,
+          "ixy": 0.0,
+          "ixz": 0.0,
+          "iyy": 99.800716762,
+          "iyz": 0.0,
+          "izz": 59.461883682
+        },
+        "solids": [
+          {
+            "com_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "inertia_kg_m2": [
+              [
+                49.741883682,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                49.741883682,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                49.741883682
+              ]
+            ],
+            "mass_kg": 497.418836818,
+            "name": "float__buoy",
+            "pose": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          {
+            "com_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "inertia_kg_m2": [
+              [
+                9.72,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                9.72,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                15.552
+              ]
+            ],
+            "mass_kg": 259.2,
+            "name": "float__ballast",
+            "pose": [
+              0.0,
+              0.0,
+              -0.45,
+              0.707106781,
+              0.0,
+              0.0,
+              0.707106781
+            ]
+          }
+        ],
+        "warnings": []
+      },
+      "label": "Float",
+      "name": "float",
+      "pose": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "visuals": [
+        {
+          "material": {
+            "albedo": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ],
+            "ambient": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ],
+            "card": "HDPE",
+            "emissive": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "fallback": false,
+            "metalness": 0.0,
+            "roughness": 0.6
+          },
+          "mesh": "meshes/visual/float__buoy.stl",
+          "name": "float__buoy",
+          "pose": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "solid": "float__buoy"
+        },
+        {
+          "material": {
+            "albedo": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ],
+            "ambient": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ],
+            "card": "Concrete",
+            "emissive": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "fallback": false,
+            "metalness": 0.0,
+            "roughness": 0.85
+          },
+          "mesh": "meshes/visual/float__ballast.stl",
+          "name": "float__ballast",
+          "pose": [
+            0.0,
+            0.0,
+            -0.45,
+            0.707106781,
+            0.0,
+            0.0,
+            0.707106781
+          ],
+          "solid": "float__ballast"
+        }
+      ]
+    },
+    {
+      "collisions": [
+        {
+          "approximation": "convex_hull",
+          "collision_mesh": "meshes/collision/keel__fin_convex.stl",
+          "decimation_cell_m": 0.088154695,
+          "faces": 132,
+          "fallback": false,
+          "geometry": {
+            "mesh": "meshes/collision/keel__fin_convex.stl",
+            "type": "mesh"
+          },
+          "hull_inflation": 1.244593641,
+          "hull_volume_m3": 0.582768083,
+          "name": "keel__fin",
+          "pose": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "source_mesh": "meshes/visual/keel__fin.stl",
+          "volume_m3": 0.468239644,
+          "warnings": []
+        }
+      ],
+      "inertial": {
+        "com_m": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "inertia_kg_m2": [
+          [
+            44.178646691,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            149.853969576,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            123.346781562
+          ]
+        ],
+        "mass_kg": 706.858347058,
+        "num_solids": 1,
+        "pose": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "sdf": {
+          "ixx": 44.178646691,
+          "ixy": 0.0,
+          "ixz": 0.0,
+          "iyy": 149.853969576,
+          "iyz": 0.0,
+          "izz": 123.346781562
+        },
+        "solids": [
+          {
+            "com_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "inertia_kg_m2": [
+              [
+                44.178646691,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                149.853969576,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                123.346781562
+              ]
+            ],
+            "mass_kg": 706.858347058,
+            "name": "keel__fin",
+            "pose": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        ],
+        "warnings": []
+      },
+      "label": "Keel",
+      "name": "keel",
+      "pose": [
+        0.0,
+        0.0,
+        -0.4,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "visuals": [
+        {
+          "material": {
+            "albedo": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ],
+            "ambient": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ],
+            "card": "mystery_composite",
+            "emissive": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "fallback": true,
+            "metalness": 0.0,
+            "roughness": 0.6
+          },
+          "mesh": "meshes/visual/keel__fin.stl",
+          "name": "keel__fin",
+          "pose": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "solid": "keel__fin"
+        }
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "body": "hull",
+      "description": "LCS di sollevamento, authoring manuale",
+      "name": "hull__cog_hook",
+      "pose": [
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "source": "ir"
+    },
+    {
+      "body": "hull",
+      "description": "JCS del joint pto_joint sul body padre",
+      "name": "hull__pto_joint",
+      "pose": [
+        0.0,
+        0.0,
+        0.4,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "source": "derived"
+    },
+    {
+      "body": "pto_shaft",
+      "description": "JCS del joint pto_joint sul body figlio",
+      "name": "pto_shaft__pto_joint",
+      "pose": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "source": "derived"
+    },
+    {
+      "body": "hull",
+      "description": "JCS del joint keel_joint sul body padre",
+      "name": "hull__keel_joint",
+      "pose": [
+        0.0,
+        0.0,
+        -0.4,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "source": "derived"
+    },
+    {
+      "body": "keel",
+      "description": "JCS del joint keel_joint sul body figlio",
+      "name": "keel__keel_joint",
+      "pose": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "source": "derived"
+    }
+  ],
+  "meta": {
+    "budget": {
+      "max_collision_faces": 1500,
+      "max_hull_inflation": 1.35,
+      "primitive_cover": 0.98,
+      "primitive_tolerance": 0.01,
+      "primitive_volume_tolerance": 0.05
+    },
+    "emitter_version": "cad-to-gazebo/0.1.0",
+    "generator": "sdf_artifacts.py",
+    "ir_hash": "sha256:e0703623201c2456eba553b217df2cbc35e4d7ba6ce42c8633db4b80350d8ce8",
+    "ir_schema": "cad-to-gazebo/cad-ir/1",
+    "ir_source_hash": "",
+    "root": "hull",
+    "units": "SI (m, kg, rad)"
+  },
+  "schema": "cad-to-gazebo/sdf-artifacts/1",
+  "sensors": [
+    {
+      "frame": "hull",
+      "name": "imu_hull",
+      "pose": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "rate_hz": 100.0,
+      "source": "ir",
+      "topic": "/wec/hull/imu",
+      "type": "imu"
+    }
+  ]
+}

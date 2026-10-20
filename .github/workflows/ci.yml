@@ -49,7 +49,23 @@ jobs:
         run: |
           python -m cad.ir_schema --print-schema > /dev/null
           python -m cad.ir_schema tests/fixtures/cad_manifest_demo.json \
-                                  tests/fixtures/cad_manifest_full.json
+                                  tests/fixtures/cad_manifest_full.json \
+                                  tests/fixtures/cad_manifest_sample_assembly.json
+
+      - name: Reproducible artefact (C4) - regenerate and diff
+        # The SDF-ready artefact is a committed deliverable: regenerate it from
+        # the committed IR + meshes and require byte identity, so neither the
+        # generator nor the file itself can drift unnoticed. `scipy` (qhull)
+        # arrives with the `freecad` extra, so the hull rung is covered here.
+        run: |
+          python tests/fixtures/make_sample_meshes.py --out tests/fixtures
+          python -m cad.sdf_artifacts \
+              --manifest tests/fixtures/cad_manifest_sample_assembly.json \
+              --ws       tests/fixtures \
+              --out      tests/fixtures/sdf_artifacts_sample.json \
+              --write-collision
+          git diff --exit-code -- tests/fixtures/sdf_artifacts_sample.json \
+                                    tests/fixtures/meshes
 
       - name: Test (pytest)
         # No FreeCAD and no maritime_ws workspace in CI: the suite covers the

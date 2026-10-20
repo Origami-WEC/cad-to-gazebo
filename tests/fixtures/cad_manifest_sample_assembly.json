@@ -1,0 +1,509 @@
+{
+  "schema": "cad-to-gazebo/cad-ir/1",
+  "meta": {
+    "generator": "make_sample_meshes.py",
+    "emitter_version": "cad-to-gazebo/0.1.0",
+    "device_type": "generic",
+    "source_document": "sample assembly (C4 fixtures)",
+    "source_file": "",
+    "source_hash": "",
+    "units": "SI (m, kg, rad)",
+    "created": "2026-10-20T00:00:00",
+    "root": "hull"
+  },
+  "bodies": [
+    {
+      "name": "hull",
+      "label": "Hull",
+      "pose": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "solids": [
+        {
+          "name": "hull__shell",
+          "label": "shell",
+          "pose": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "density_kg_m3": 7850.0,
+          "density_source": "analytic",
+          "reference_mass_kg": 15072.0,
+          "reference_volume_m3": 1.92,
+          "reference_com_m": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference_inertia_kg_m2": [
+            [
+              2612.48,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              5827.84,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              6832.64
+            ]
+          ],
+          "visual_mesh": "model://meshes/visual/hull__shell.stl",
+          "collision_mesh": "model://meshes/collision/hull__shell_convex.stl",
+          "stl_path": "meshes/visual/hull__shell.stl",
+          "stl_collision_path": "meshes/collision/hull__shell_convex.stl",
+          "material": {
+            "card": "Steel",
+            "diffuse": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ],
+            "ambient": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ]
+          }
+        }
+      ],
+      "num_solids": 1
+    },
+    {
+      "name": "pto_shaft",
+      "label": "PTO shaft",
+      "pose": [
+        0.0,
+        0.0,
+        0.4,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "solids": [
+        {
+          "name": "pto_shaft__mass",
+          "label": "mass",
+          "pose": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "density_kg_m3": 2700.0,
+          "density_source": "analytic",
+          "reference_mass_kg": 171.00317132,
+          "reference_volume_m3": 0.063334508,
+          "reference_com_m": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference_inertia_kg_m2": [
+            [
+              28.546129399,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              28.546129399,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              1.231222834
+            ]
+          ],
+          "visual_mesh": "model://meshes/visual/pto_shaft__mass.stl",
+          "collision_mesh": "model://meshes/collision/pto_shaft__mass_convex.stl",
+          "stl_path": "meshes/visual/pto_shaft__mass.stl",
+          "stl_collision_path": "meshes/collision/pto_shaft__mass_convex.stl",
+          "material": {
+            "card": "Alluminio 6061",
+            "diffuse": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ],
+            "ambient": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ]
+          }
+        }
+      ],
+      "num_solids": 1
+    },
+    {
+      "name": "float",
+      "label": "Float",
+      "pose": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "solids": [
+        {
+          "name": "float__buoy",
+          "label": "buoy",
+          "pose": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "density_kg_m3": 950.0,
+          "density_source": "analytic",
+          "reference_mass_kg": 497.418836818,
+          "reference_volume_m3": 0.523598776,
+          "reference_com_m": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference_inertia_kg_m2": [
+            [
+              49.741883682,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              49.741883682,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              49.741883682
+            ]
+          ],
+          "visual_mesh": "model://meshes/visual/float__buoy.stl",
+          "collision_mesh": "model://meshes/collision/float__buoy_convex.stl",
+          "stl_path": "meshes/visual/float__buoy.stl",
+          "stl_collision_path": "meshes/collision/float__buoy_convex.stl",
+          "material": {
+            "card": "HDPE",
+            "diffuse": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ],
+            "ambient": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ]
+          }
+        },
+        {
+          "name": "float__ballast",
+          "label": "ballast",
+          "pose": [
+            0.0,
+            0.0,
+            -0.45,
+            0.7071067811865476,
+            0.0,
+            0.0,
+            0.7071067811865476
+          ],
+          "density_kg_m3": 2400.0,
+          "density_source": "analytic",
+          "reference_mass_kg": 259.2,
+          "reference_volume_m3": 0.108,
+          "reference_com_m": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference_inertia_kg_m2": [
+            [
+              9.72,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              9.72,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              15.552
+            ]
+          ],
+          "visual_mesh": "model://meshes/visual/float__ballast.stl",
+          "collision_mesh": "model://meshes/collision/float__ballast_convex.stl",
+          "stl_path": "meshes/visual/float__ballast.stl",
+          "stl_collision_path": "meshes/collision/float__ballast_convex.stl",
+          "material": {
+            "card": "Concrete",
+            "diffuse": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ],
+            "ambient": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ]
+          }
+        }
+      ],
+      "num_solids": 2
+    },
+    {
+      "name": "keel",
+      "label": "Keel",
+      "pose": [
+        0.0,
+        0.0,
+        -0.4,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "solids": [
+        {
+          "name": "keel__fin",
+          "label": "fin",
+          "pose": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "density_kg_m3": 1500.0,
+          "density_source": "analytic",
+          "reference_mass_kg": 706.858347058,
+          "reference_volume_m3": 0.471238898,
+          "reference_com_m": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference_inertia_kg_m2": [
+            [
+              44.178646691,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              149.853969576,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              123.346781562
+            ]
+          ],
+          "visual_mesh": "model://meshes/visual/keel__fin.stl",
+          "collision_mesh": "model://meshes/collision/keel__fin_convex.stl",
+          "stl_path": "meshes/visual/keel__fin.stl",
+          "stl_collision_path": "meshes/collision/keel__fin_convex.stl",
+          "material": {
+            "card": "mystery_composite",
+            "diffuse": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ],
+            "ambient": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ]
+          }
+        }
+      ],
+      "num_solids": 1
+    }
+  ],
+  "joints": [
+    {
+      "name": "pto_joint",
+      "label": "pto_joint",
+      "fc_type": "Slider",
+      "parent": "hull",
+      "child": "pto_shaft",
+      "origin": [
+        0.0,
+        0.0,
+        0.4,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "limits": {
+        "lower": -0.6,
+        "upper": 0.6,
+        "lower_enabled": true,
+        "upper_enabled": true,
+        "unit": "m",
+        "offset_m": 0.0
+      },
+      "activated": true
+    },
+    {
+      "name": "keel_joint",
+      "label": "keel_joint",
+      "fc_type": "Fixed",
+      "parent": "hull",
+      "child": "keel",
+      "origin": [
+        0.0,
+        0.0,
+        -0.4,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "limits": {
+        "lower": 0.0,
+        "upper": 0.0,
+        "lower_enabled": false,
+        "upper_enabled": false,
+        "unit": "m",
+        "offset_m": 0.0
+      },
+      "activated": true
+    }
+  ],
+  "skipped_joints": [],
+  "frames": [
+    {
+      "name": "hull__cog_hook",
+      "body": "hull",
+      "pose": [
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "description": "LCS di sollevamento, authoring manuale"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "jet_pto_shaft_bottom",
+      "kind": "jet",
+      "body": "pto_shaft",
+      "frame": "pto_shaft",
+      "pose": [
+        0.0,
+        0.0,
+        -0.7,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "direction": [
+        0.0,
+        0.0,
+        -1.0
+      ]
+    },
+    {
+      "name": "mooring_hull_base",
+      "kind": "mooring",
+      "body": "hull",
+      "frame": "hull",
+      "pose": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "direction": [
+        0.0,
+        0.0,
+        -1.0
+      ]
+    }
+  ],
+  "sensors": [
+    {
+      "name": "imu_hull",
+      "type": "imu",
+      "frame": "hull",
+      "rate_hz": 100.0,
+      "topic": "/wec/hull/imu",
+      "pose": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    }
+  ]
+}
