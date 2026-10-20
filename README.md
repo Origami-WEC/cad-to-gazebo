@@ -32,6 +32,50 @@ imported lazily, only inside the export layer that actually runs under
 | IR → hulls/materials | `cad_assembly.py`, `material_props.py` | Pose/joint maths; density and colour resolution from FreeCAD material cards or name keywords. |
 | IR → SDF | `export_manifest.py`, `config_sync.py` | Regenerates the manifest + meshes and reconciles the derived configs (`pipeline.json`, `hydrodynamics_params.json`, `mooring.json`). |
 | Demo fallback | `create_demo_model.py` | Builds a manifest without CAD when no `.FCStd` is available. |
+| STEP → IR (headless) | `step_import.py` | Reads a STEP AP242/AP214/AP203 exchange file with the OCCT kernel and emits the IR: named, located assemblies and parts, in millimetres. No FreeCAD, no GUI, no X. |
+
+## STEP import, headless (`cad.step_import`)
+
+`freecad_exporter.py` needs a FreeCAD host. `step_import.py` does not: it reads
+the STEP export of the same assembly through the OCCT kernel (the `OCP`
+bindings shipped by `cadquery-ocp`) and emits the IR directly. That is the
+supported path for a container or a CI runner with no display.
+
+```bash
+python -m pip install -e ".[step]"        # pulls cadquery-ocp (pulls vtk)
+python -m cad.step_import --step Transmission/Assemblies/full_transmission.step \
+                          --out config/step_ir.json
+```
+
+Without `--out` the IR goes to stdout. Exit status is `0` on success and `1`
+with the reason on stderr for a missing file, a file that is not STEP, a
+truncated or malformed DATA section, or a host without the kernel.
+
+What the IR carries (`schema: "cad-to-gazebo/step-ir/1"`):
+
+* `source` — path, SHA-256, byte size, declared `FILE_SCHEMA` and the
+  application protocol derived from it (`AP242`, `AP214`, `AP203`,
+  `AP_UNKNOWN`). A file that declares AP214 is reported as AP214; the reader
+  never relabels it.
+* `units` — OCCT reads into its cascade unit, so every coordinate is in
+  millimetres.
+* `assemblies` — one record per assembly, with its `path` from the root, its
+  `parent`, its depth and a row-major 4x4 placement matrix.
+* `parts` — one record per leaf shape, with its `path`, `parent`, placement,
+  world-space `bbox`, `volume` (mm³, `null` for a non-solid leaf), `faces`,
+  `solids` and `color`.
+* `counts` — assembly/part/solid/face totals.
+
+Names come from the STEP product names, not from traversal indices: a part is
+`full_transmission/spare_transmission/spare_structure/profiles/alluminum 311/Body001`.
+Where a name repeats among the siblings of one parent, a `#2`, `#3`, ... suffix
+is appended in document order, so every `path` is unique and stable across
+runs.
+
+The kernel is imported lazily: `import cad.step_import` works, and the rest of
+the package imports, lints and tests, on a host where `cadquery-ocp` cannot be
+installed. Only calling `import_step()` requires it, and the failure names the
+extra to install.
 
 ## Install
 
@@ -73,7 +117,6 @@ package runs standalone, `tests/conftest.py` supplies a stub for it.
 ## Branch / PR convention
 
 - One branch per issue: `issue-<number>-<short-slug>`, cut from `main`.
-  This change lives on `issue-2-repo-foundation`.
 - Open the PR against `main`; the PR body documents the approach and any
   discarded alternative.
 - CI (`.github/workflows/ci.yml`) runs `ruff` and `python -m pytest` on every
