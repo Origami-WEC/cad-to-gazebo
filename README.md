@@ -156,6 +156,108 @@ The parent workspace provides the `ws_root` module (`workspace_root()`), which
 points at the `maritime_ws` root where `config/` and `meshes/` live. When the
 package runs standalone, `tests/conftest.py` supplies a stub for it.
 
+## STEP → IR bridge (`cad.step_to_ir`) — why it lives here
+
+`step_import.py` (C2) describes the *geometry* of a STEP file:
+`schema: "cad-to-gazebo/step-ir/1"`, with `source`, `units`, `counts`,
+`assemblies`, `parts`. The contract every consumer in the chain reads —
+`config_sync.py`, `sdf_artifacts.py`, `build_simulation.py` in `maritime_ws` —
+is `cad-ir/1` (C3): `meta`, `bodies`, `joints`. They are two different
+documents by design, and `step_to_ir.py` is the one bridge between them:
+
+```bash
+python -m cad.step_to_ir --step Transmission/Assemblies/full_transmission.step \
+                         --ws . --contract contracts/transmission.json \
+                         --out config/cad_manifest.json
+```
+
+The split of responsibility is explicit and is the decision this block records:
+
+* **geometry comes from the CAD.** Names, placements, volume, CoM and the
+  inertia tensor are computed by the kernel on the B-rep. The STEP file is read
+  once: `step_import.import_step(shapes_out=...)` hands the OCCT shapes to the
+  bridge, which tessellates them into `meshes/visual/<body>__<solid>.stl`.
+* **joint topology and materials are *declared*, not inferred.** A joint is not
+  a geometric fact — a bolt and a slider have the same faces — and no density is
+  written in a STEP file. They arrive in a JSON contract (`--contract`).
+  **Without a contract the bridge emits `joints: []` and density defaults: it
+  never invents topology from the assembly tree or from coincident faces.**
+  Inferring DOF from geometry was the alternative and it is discarded: it
+  guesses design intent and would be wrong for every device whose joints are
+  chosen rather than shaped.
+
+The bridge lives in `cad-to-gazebo`, not in `maritime_ws`, because both document
+shapes are defined and versioned in this repository (`docs/ir-v1.md`,
+`schema/`), and because pairing the CAD geometry with the declared physics is a
+CAD-side concern. `maritime_ws` stays a consumer: it reads the produced
+`cad-ir/1` manifest and builds.
+
+## SDF gate (`cad.sdf_validate`)
+
+`build_simulation.py` used to accept the emitted SDF with `gz sdf -k` *when the
+Gazebo CLI happened to be on `PATH`*, and otherwise print
+`[ATTENZIONE] CLI 'gz' non trovato: salto la validazione SDF`. A build that
+skips validation proves nothing. `sdf_validate.py` closes that hole and is the
+gate C5 requires:
+
+```bash
+python -m cad.sdf_validate --strict description/model.sdf
+python -m cad.sdf_validate --backend gz model.sdf   # fail if `gz` is absent
+```
+
+* `gz` present → `gz sdf -p <file>`, the reference parser; its exit code is the
+  verdict.
+* `gz` absent → an embedded SDFormat backend: a real XML parse plus conformance
+  checks (required attributes, joint type, `parent`/`child` resolving to an
+  existing link, duplicate names, `<pose>` shape, limits ordering), never a
+  string comparison. The backend that ran is always printed, so the two are
+  never confused.
+
+Two severity levels: **errors** are what `gz sdf` itself rejects and always
+fail; **warnings** are physical hygiene SDFormat silently defaults (missing
+`<inertial>`, non-positive mass, a link with no collision, a disconnected link).
+`--strict` promotes warnings to failures, which is what the harness uses.
+
+## End-to-end: one command
+
+From a clean clone, with a `maritime_ws` checkout next to this repository:
+
+```bash
+python -m pip install -e ".[dev,freecad,step]"
+MARITIME_WS=../maritime_ws tools/e2e_maritime_ws.sh --strict
+```
+
+The single command runs five stages and fails on the first one that cannot run
+(a skipped stage is a failure, not a silent pass):
+
+1. CAD → IR v1 + visual meshes (`create_demo_model.py`, the no-FreeCAD path);
+2. IR → `config/*.json` (`config_sync.py`), twice, to prove idempotence;
+3. IR + config → `description/model.sdf` (`maritime_ws/build_simulation.py`);
+4. SDF gate (`cad.sdf_validate`).
+
+That is the demo path. Stage 5 reruns the same pipeline **from a real STEP
+file** — `cad.step_import` → `cad.step_to_ir` (with
+`tests/fixtures/contract_point_absorber.json`) → `config_sync` → the
+`maritime_ws` build → `cad.sdf_validate` — so the command proves the STEP →
+IR → artefacts → `maritime_ws` → valid SDF chain, not just that the demo
+generator is green. `--submodule` runs it against the pinned
+`maritime_ws/src/cad` checkout instead of this working tree.
+
+## Pinned in `maritime_ws` (submodule)
+
+`maritime_ws` mounts this repository as `src/cad`. The pointer is a **commit
+hash, not a floating branch**, so a `maritime_ws` build is reproducible from the
+CAD side. Moving the pin is one command:
+
+```bash
+tools/pin_cad_submodule.sh ../maritime_ws <commit-sha>      # commit on cad-to-gazebo
+```
+
+It fetches the commit into the submodule, checks it out, stages `src/cad` and
+commits the pointer in the `maritime_ws` checkout. To verify a pin already in
+place, `git -C <maritime_ws> submodule status src/cad` prints the commit, and
+`tools/e2e_maritime_ws.sh --submodule --strict` runs the whole chain against it.
+
 ## Branch / PR convention
 
 - One branch per issue: `issue-<number>-<short-slug>`, cut from `main`.

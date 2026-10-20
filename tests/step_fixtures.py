@@ -41,7 +41,12 @@ def find_mechanism_step() -> Path | None:
     return None
 
 
-def write_ap242_assembly(path: str | Path, name: str = "fixture_assembly") -> Path:
+def write_ap242_assembly(
+    path: str | Path,
+    name: str = "fixture_assembly",
+    root_part: str = "frame",
+    moving_part: str = "shaft",
+) -> Path:
     """Write a small but real AP242 assembly and return its path.
 
     The assembly is ``name`` containing two named box parts at different
@@ -49,6 +54,12 @@ def write_ap242_assembly(path: str | Path, name: str = "fixture_assembly") -> Pa
     schema is set on the writer *after* it is constructed: OCCT registers the
     ``write.step.schema`` resource parameter lazily, when the first writer
     object exists, and setting it earlier is silently refused.
+
+    ``root_part`` / ``moving_part`` name the two parts. The defaults keep the
+    bridge unit tests stable; the end-to-end harness overrides them to
+    ``hull`` / ``pto_shaft`` so the very same STEP chain lands on a device the
+    ``maritime_ws`` build recognises as a float (its hydrodynamics config wets
+    the ``hull`` link), instead of the generic ``frame``/``shaft`` rig.
     """
     from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
     from OCP.gp import gp_Trsf, gp_Vec
@@ -79,8 +90,8 @@ def write_ap242_assembly(path: str | Path, name: str = "fixture_assembly") -> Pa
         component = shapes.AddComponent(root, definition, TopLoc_Location(transform))
         TDataStd_Name.Set_s(component, TCollection_ExtendedString(part_name))
 
-    _add("frame", 0.0, 0.0, 0.0, (20.0, 10.0, 5.0))
-    _add("shaft", 50.0, 0.0, 0.0, (4.0, 4.0, 60.0))
+    _add(root_part, 0.0, 0.0, 0.0, (20.0, 10.0, 5.0))
+    _add(moving_part, 50.0, 0.0, 0.0, (4.0, 4.0, 60.0))
     shapes.UpdateAssemblies()
 
     writer = STEPCAFControl_Writer()
