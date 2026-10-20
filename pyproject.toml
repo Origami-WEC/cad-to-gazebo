@@ -26,6 +26,11 @@ dependencies = [
 # PyPI, so this extra only pulls the pure-Python mesh helpers the export/demo
 # paths need; the exporter imports FreeCAD lazily and fails only when used.
 freecad = ["trimesh>=3.20"]
+# Headless STEP front-end (`cad.step_import`): the OCCT kernel bindings. Not a
+# core dependency -- the module imports OCP lazily, so the rest of the package
+# imports, lints and tests without it. Prebuilt wheels cover x86_64 and aarch64
+# for cp311/cp312/cp313; `vtk` comes in transitively with the bindings.
+step = ["cadquery-ocp>=8.0"]
 dev = ["pytest>=7.0", "ruff>=0.5"]
 
 [tool.setuptools]
