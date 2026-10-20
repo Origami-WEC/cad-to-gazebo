@@ -1,17 +1,37 @@
-"""Unit tests for cad.config_sync -- pure config reconciliation from the manifest.
+"""Unit tests for cad.config_sync -- pure config reconciliation from the CAD IR.
 
-Runs without FreeCAD. Covers the mass/joint/mooring reconciliation logic and
-the end-to-end ``sync_from_manifest`` on a throwaway workspace.
+Runs without FreeCAD. Covers the mass/joint/mooring reconciliation logic, the
+v1 IR gate (``load_ir``) and the end-to-end ``sync_from_manifest`` on a
+throwaway workspace.
 """
 
 import json
 
 import pytest
 from cad import config_sync as cs
+from cad import ir_schema
 
 
-def _solid(mass):
-    return {"name": "s", "reference_mass_kg": mass}
+def _pose(x=0.0, y=0.0, z=0.0):
+    return [x, y, z, 0.0, 0.0, 0.0, 1.0]
+
+
+def _solid(name, mass):
+    """A valid v1 solid: unique name inside the body, pose, mass, material."""
+    return {"name": name, "pose": _pose(), "density_kg_m3": 1000.0,
+            "reference_mass_kg": mass, "material": {"card": "Steel"}}
+
+
+def _meta(root="hull"):
+    return {
+        "generator": "tests/test_config_sync.py",
+        "emitter_version": "cad-to-gazebo/0.0.0",
+        "device_type": "test_fixture",
+        "source_hash": "sha256:" + "0" * 64,
+        "units": "SI (m, kg, rad)",
+        "created": "2026-01-01T00:00:00Z",
+        "root": root,
+    }
 
 
 def _limits(lower=0.0, upper=1.0, unit="m", offset=0.0,
@@ -24,21 +44,25 @@ def _limits(lower=0.0, upper=1.0, unit="m", offset=0.0,
 
 
 def _manifest():
+    """A valid v1 CAD IR document (``schema`` + ``meta`` + bodies + joints)."""
     return {
-        "meta": {"root": "hull"},
+        "schema": ir_schema.IR_SCHEMA,
+        "meta": _meta("hull"),
         "bodies": [
-            {"name": "hull", "label": "Hull",
-             "solids": [_solid(100.0), _solid(50.0)]},
-            {"name": "flap", "label": "Flap", "solids": [_solid(10.0)]},
+            {"name": "hull", "label": "Hull", "pose": _pose(),
+             "solids": [_solid("hull__shell", 100.0),
+                        _solid("hull__ballast", 50.0)]},
+            {"name": "flap", "label": "Flap", "pose": _pose(),
+             "solids": [_solid("flap__plate", 10.0)]},
         ],
         "joints": [
-            {"name": "j_hinge", "fc_type": "Revolute",
+            {"name": "j_hinge", "fc_type": "Revolute", "activated": True,
              "parent": "hull", "child": "flap",
              "axis": [0.0, 0.0, 1.0], "limits": _limits(unit="rad")},
-            {"name": "j_weld", "fc_type": "Fixed",
+            {"name": "j_weld", "fc_type": "Fixed", "activated": True,
              "parent": "hull", "child": "flap", "axis": [0.0, 0.0, 1.0],
              "limits": _limits()},
-            {"name": "j_dist", "fc_type": "Distance",
+            {"name": "j_dist", "fc_type": "Distance", "activated": True,
              "parent": "hull", "child": "flap", "axis": [0.0, 0.0, 1.0],
              "limits": _limits()},
             {"name": "j_off", "fc_type": "Slider", "activated": False,
@@ -48,23 +72,69 @@ def _manifest():
     }
 
 
+def _legacy_manifest():
+    """A pre-v1 three-key manifest: `meta` + flat `links` + `joints`."""
+    return {
+        "meta": {"root": "hull"},
+        "links": [{"name": "hull", "reference_mass_kg": 42.0}],
+        "joints": [],
+    }
+
+
+# --- IR gate (load_ir) -------------------------------------------------------
+
+def test_load_ir_accepts_v1_document():
+    ir = cs.load_ir(ir=_manifest())
+    assert ir["schema"] == ir_schema.IR_SCHEMA
+
+
+def test_load_ir_rejects_legacy_manifest():
+    with pytest.raises(ir_schema.IRSchemaError) as excinfo:
+        cs.load_ir(ir=_legacy_manifest())
+    assert "--migrate" in str(excinfo.value)
+
+
+def test_load_ir_migrates_legacy_only_on_request():
+    ir = cs.load_ir(ir=_legacy_manifest(), allow_legacy=True)
+    assert ir["schema"] == ir_schema.IR_SCHEMA
+    assert [b["name"] for b in ir["bodies"]] == ["hull"]
+
+
+def test_load_ir_rejects_broken_v1_document():
+    bad = _manifest()
+    bad["bodies"][0]["solids"][0].pop("reference_mass_kg")
+    with pytest.raises(ir_schema.IRSchemaError):
+        cs.load_ir(ir=bad)
+
+
+def test_load_ir_reads_and_validates_a_file(tmp_path):
+    path = tmp_path / "cad_manifest.json"
+    path.write_text(json.dumps(_manifest()))
+    assert cs.load_ir(path=str(path))["meta"]["root"] == "hull"
+
+
+def test_load_ir_missing_file_raises(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        cs.load_ir(path=str(tmp_path / "nope.json"))
+
+
 # --- total_mass_kg / body_names ---------------------------------------------
 
 def test_total_mass_kg_bodies():
     assert cs.total_mass_kg(_manifest()) == pytest.approx(160.0)
 
 
-def test_total_mass_kg_legacy_links():
-    manifest = {"links": [{"name": "hull", "reference_mass_kg": 42.0}]}
-    assert cs.total_mass_kg(manifest) == pytest.approx(42.0)
+def test_total_mass_kg_ignores_links_residue():
+    """A v1 document may still carry `links[]` for old readers: we ignore it."""
+    ir = _manifest()
+    ir["links"] = [{"name": "hull", "reference_mass_kg": 42.0}]
+    assert cs.total_mass_kg(ir) == pytest.approx(160.0)
 
 
-def test_body_names_mixed():
-    manifest = {
-        "bodies": [{"name": "hull"}, {"name": "flap"}],
-        "links": [{"name": "ballast"}],
-    }
-    assert cs.body_names(manifest) == ["hull", "flap", "ballast"]
+def test_body_names_ignores_links_residue():
+    ir = _manifest()
+    ir["links"] = [{"name": "ballast"}]
+    assert cs.body_names(ir) == ["hull", "flap"]
 
 
 # --- movable_joints ----------------------------------------------------------
