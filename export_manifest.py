@@ -108,6 +108,38 @@ def export_demo(ws: str, force: bool) -> bool:
     return subprocess.run(cmd).returncode == 0
 
 
+def validate_manifest(manifest_path: str) -> bool:
+    """Gate the manifest through the IR v1 validator before the config sync.
+
+    The producers (`freecad_exporter.py`, `create_demo_model.py`) already refuse
+    to write a manifest that breaks the contract. This second gate catches the
+    case where the manifest comes from somewhere else -- a checkout produced by
+    an older exporter, a hand-edited file. A pre-v1 (legacy) manifest is
+    accepted with an explicit warning instead of blocking the whole run; a
+    manifest that *claims* to be v1 and is not is a hard failure.
+    """
+    from cad import ir_schema
+
+    try:
+        ir_schema.validate_file(manifest_path, allow_legacy=True)
+    except ir_schema.IRSchemaError as exc:
+        _log("manifest IR NON valido:")
+        for msg in exc.errors:
+            _log("  - " + msg)
+        return False
+
+    try:
+        with open(manifest_path) as fh:
+            manifest = json.load(fh)
+    except (OSError, ValueError):  # pragma: no cover - validate_file caught it
+        return False
+    if ir_schema.looks_legacy(manifest):
+        _log("ATTENZIONE: manifest pre-v1 (nessun tag '{}'): accettato in "
+             "lettura, ma le nuove scritture devono usare lo schema v1 "
+             "(vedi docs/ir-v1.md).".format(ir_schema.IR_SCHEMA))
+    return True
+
+
 def sync_configs(ws: str, write_mooring_derived: bool) -> None:
     from cad import config_sync
 
@@ -147,6 +179,10 @@ def export_manifest(ws: Optional[str] = None,
         if not export_demo(ws, force=force):
             _log("creazione modello demo fallita")
             return 1
+
+    if not validate_manifest(manifest_path):
+        _log("config non allineati: il manifest non supera il validatore IR")
+        return 1
 
     sync_configs(ws, write_mooring_derived=write_mooring_derived)
     _log("configurazione allineata a {}".format(

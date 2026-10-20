@@ -1,0 +1,332 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Origami-WEC/cad-to-gazebo/blob/main/schema/cad_ir_v1.schema.json",
+  "title": "cad-to-gazebo CAD IR v1",
+  "description": "Versioned contract for config/cad_manifest.json, the intermediate representation between the CAD (Mechanism / STEP import) and the SDF emitters. Validated fail-fast by cad.ir_schema before any write and in CI. The `schema` tag selects the version: a document carrying a different tag is a different contract and must be migrated, never silently reinterpreted.",
+  "type": "object",
+  "required": ["schema", "meta"],
+  "properties": {
+    "schema": {
+      "const": "cad-to-gazebo/cad-ir/1",
+      "description": "IR version tag. Bumped per breaking change; additive sections do not bump it."
+    },
+    "meta": { "$ref": "#/$defs/meta" },
+    "bodies": {
+      "description": "Rigid bodies (SDF links). Each carries its own frame pose, the solids it is made of and the per-solid material/mass/inertia.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/body" }
+    },
+    "joints": {
+      "description": "DOF topology: one entry per FreeCAD Assembly joint that maps to an SDF joint, in CAD document order.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/joint" }
+    },
+    "skipped_joints": {
+      "description": "CAD joints deliberately not emitted (unresolvable references, mappings merged away): every skip must carry its reason.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/skipped_joint" }
+    },
+    "frames": {
+      "description": "Local coordinate systems / LCS attached to a body. A joint origin is one of them; sensor and jet anchors mount on one of them.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/frame" }
+    },
+    "anchors": {
+      "description": "Mount points for sensors, jets and mooring fairleads. An anchor is a named pose, not a body: it never appears as an SDF link.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/anchor" }
+    },
+    "sensors": {
+      "description": "Sensor declarations carried through to the emitter (SDF/URDF sensor blocks, ROS topics).",
+      "type": "array",
+      "items": { "$ref": "#/$defs/sensor" }
+    },
+    "links": {
+      "description": "LEGACY (pre-v1) flat link list. Still valid so that a pre-v1 manifest does not fail on upgrade, but new writes must use `bodies`. cad.ir_schema.migrate_legacy() folds it into `bodies` and drops it. See docs/ir-v1.md.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/legacy_link" }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "name": {
+      "description": "IR identifier shared by SDF, URDF and ROS: lowercase snake_case, no leading/trailing/doubled separators, produced only by cad.naming.sanitize().",
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[a-z0-9](?:[a-z0-9_]*[a-z0-9])?$"
+    },
+    "pose7": {
+      "description": "[x, y, z, qx, qy, qz, qw] in SI (metres, unit quaternion), local to the parent frame.",
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "items": { "type": "number" }
+    },
+    "vec3": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": { "type": "number" }
+    },
+    "mat3": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "array",
+        "minItems": 3,
+        "maxItems": 3,
+        "items": { "type": "number" }
+      }
+    },
+    "material": {
+      "description": "Material card resolved by material_props.py: a named card plus the visual colours. Extra keys are preserved for the emitter.",
+      "type": "object",
+      "required": ["card"],
+      "properties": {
+        "card": { "type": "string" },
+        "diffuse": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": { "type": "number", "minimum": 0, "maximum": 1 }
+        },
+        "ambient": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": { "type": "number", "minimum": 0, "maximum": 1 }
+        },
+        "density_kg_m3": { "type": "number", "exclusiveMinimum": 0 },
+        "source": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "meta": {
+      "description": "Closed contract: these are the fields another repository matches on. Unknown keys are rejected so a producer cannot smuggle an undocumented field into the shared IR.",
+      "type": "object",
+      "required": [
+        "generator",
+        "units",
+        "source_hash",
+        "emitter_version",
+        "device_type",
+        "created"
+      ],
+      "properties": {
+        "generator": {
+          "description": "Producer that wrote the file (freecad_exporter.py, create_demo_model.py, step_import.py, ...).",
+          "type": "string",
+          "minLength": 1
+        },
+        "emitter_version": {
+          "description": "<package>/<version> of the IR emitter, e.g. cad-to-gazebo/0.1.0.",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._/-]*$"
+        },
+        "device_type": {
+          "description": "WEC device class the model belongs to (point_absorber, oscillating_surge_converter, oscillating_water_column, overtopping, transmission, generic, ...).",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "source_hash": {
+          "description": "sha256:<64 hex> of the source CAD file, or \"\" when the model has no CAD source (demo).",
+          "type": "string",
+          "pattern": "^(?:sha256:[0-9a-f]{64})?$"
+        },
+        "units": {
+          "description": "Unit contract of every coordinate, mass and angle in this document.",
+          "const": "SI (m, kg, rad)"
+        },
+        "created": {
+          "description": "ISO-8601 local timestamp of the emission (second resolution).",
+          "type": "string",
+          "minLength": 1
+        },
+        "source_document": { "type": "string" },
+        "source_file": { "type": "string" },
+        "root": {
+          "description": "Name of the kinematic root body (the grounded CAD component). Must exist in `bodies`.",
+          "type": ["string", "null"],
+          "pattern": "^[a-z0-9](?:[a-z0-9_]*[a-z0-9])?$"
+        },
+        "tessellation_tolerance_mm": { "type": "number", "exclusiveMinimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "body": {
+      "type": "object",
+      "required": ["name", "pose", "solids"],
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "label": {
+          "description": "Raw CAD label, kept for traceability. Never used as an identifier.",
+          "type": "string"
+        },
+        "pose": { "$ref": "#/$defs/pose7" },
+        "solids": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/solid" }
+        },
+        "num_solids": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "solid": {
+      "type": "object",
+      "required": ["name", "pose", "density_kg_m3", "reference_mass_kg", "material"],
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "label": { "type": "string" },
+        "pose": { "$ref": "#/$defs/pose7" },
+        "density_kg_m3": { "type": "number", "exclusiveMinimum": 0 },
+        "density_source": { "type": "string" },
+        "reference_mass_kg": { "type": "number", "minimum": 0 },
+        "reference_volume_m3": { "type": "number", "minimum": 0 },
+        "reference_com_m": { "$ref": "#/$defs/vec3" },
+        "reference_inertia_kg_m2": { "$ref": "#/$defs/mat3" },
+        "visual_mesh": { "type": "string" },
+        "collision_mesh": { "type": "string" },
+        "stl_path": { "type": "string" },
+        "stl_collision_path": { "type": "string" },
+        "material": { "$ref": "#/$defs/material" },
+        "num_vertices": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "joint": {
+      "type": "object",
+      "required": ["name", "fc_type", "parent", "child", "axis", "limits", "activated"],
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "label": { "type": "string" },
+        "fc_type": {
+          "description": "FreeCAD Assembly::Joint type (Fixed, Revolute, Slider, Cylindrical, Distance, Ball, Screw, ...).",
+          "type": "string",
+          "minLength": 1
+        },
+        "parent": {
+          "description": "Parent body name (the frame the joint hangs from).",
+          "$ref": "#/$defs/name"
+        },
+        "child": {
+          "description": "Child body name (the DOF it drives).",
+          "$ref": "#/$defs/name"
+        },
+        "origin": {
+          "description": "Joint coordinate system (JCS) pose in the parent body frame.",
+          "$ref": "#/$defs/pose7"
+        },
+        "axis": {
+          "description": "DOF axis, expressed in the JCS. Non-zero.",
+          "$ref": "#/$defs/vec3"
+        },
+        "limits": { "$ref": "#/$defs/limits" },
+        "activated": {
+          "description": "False = the CAD joint is carried but produces no SDF joint.",
+          "type": "boolean"
+        },
+        "distance": { "type": "number" },
+        "distance2": { "type": "number" }
+      },
+      "additionalProperties": true
+    },
+    "limits": {
+      "description": "Absolute DOF limits in SI (already converted from mm/deg by the producer) plus the current DOF coordinate used to rebase them onto the SDF zero.",
+      "type": "object",
+      "required": ["lower", "upper", "lower_enabled", "upper_enabled", "unit", "offset_m"],
+      "properties": {
+        "lower": { "type": "number" },
+        "upper": { "type": "number" },
+        "lower_enabled": { "type": "boolean" },
+        "upper_enabled": { "type": "boolean" },
+        "unit": { "enum": ["m", "rad"] },
+        "offset_m": { "type": "number" }
+      },
+      "additionalProperties": true
+    },
+    "skipped_joint": {
+      "type": "object",
+      "required": ["label", "reason"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "frame": {
+      "type": "object",
+      "required": ["name", "body", "pose"],
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "body": { "$ref": "#/$defs/name" },
+        "pose": { "$ref": "#/$defs/pose7" },
+        "description": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "anchor": {
+      "type": "object",
+      "required": ["name", "kind", "pose"],
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "kind": {
+          "description": "What mounts here. sensor/jet are the C4 mount points; mooring carries a fairlead.",
+          "enum": ["sensor", "jet", "mooring", "other"]
+        },
+        "body": { "$ref": "#/$defs/name" },
+        "frame": { "$ref": "#/$defs/name" },
+        "pose": { "$ref": "#/$defs/pose7" },
+        "direction": {
+          "description": "Mount/effort direction in the anchor frame.",
+          "$ref": "#/$defs/vec3"
+        }
+      },
+      "additionalProperties": true
+    },
+    "sensor": {
+      "type": "object",
+      "required": ["name", "type", "frame"],
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "type": {
+          "description": "Sensor class as the emitter knows it (imu, gps, camera, force_torque, pressure, encoder, ...).",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "frame": { "$ref": "#/$defs/name" },
+        "rate_hz": { "type": "number", "exclusiveMinimum": 0 },
+        "pose": { "$ref": "#/$defs/pose7" },
+        "topic": {
+          "description": "ROS topic the reading is published on.",
+          "type": "string",
+          "minLength": 1
+        },
+        "params": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "legacy_link": {
+      "description": "Pre-v1 flat link: it is both the link and its single geometry entry.",
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "label": { "type": "string" },
+        "pose": { "$ref": "#/$defs/pose7" },
+        "reference_mass_kg": { "type": "number", "minimum": 0 },
+        "density_kg_m3": { "type": "number", "exclusiveMinimum": 0 },
+        "material": { "$ref": "#/$defs/material" },
+        "stl_path": { "type": "string" },
+        "visual_mesh": { "type": "string" },
+        "collision_mesh": { "type": "string" },
+        "solids": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/solid" }
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

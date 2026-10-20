@@ -1,0 +1,201 @@
+{
+  "schema": "cad-to-gazebo/cad-ir/1",
+  "meta": {
+    "generator": "create_demo_model.py",
+    "emitter_version": "cad-to-gazebo/0.1.0",
+    "device_type": "point_absorber",
+    "source_document": "demo (nessun CAD)",
+    "source_file": "",
+    "source_hash": "",
+    "units": "SI (m, kg, rad)",
+    "created": "2026-10-20T11:49:21",
+    "root": "hull"
+  },
+  "bodies": [
+    {
+      "name": "hull",
+      "label": "hull",
+      "pose": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "solids": [
+        {
+          "name": "hull__shell",
+          "label": "shell",
+          "density_kg_m3": 550.0,
+          "density_source": "demo",
+          "reference_mass_kg": 3043.079346,
+          "reference_volume_m3": 5.532871537,
+          "reference_com_m": [
+            0.0,
+            0.0,
+            -1.2
+          ],
+          "reference_inertia_kg_m2": [
+            [
+              3658.704571595742,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              3658.704571595742,
+              -0.0
+            ],
+            [
+              0.0,
+              -0.0,
+              744.357756851715
+            ]
+          ],
+          "visual_mesh": "model://meshes/visual/hull__shell.stl",
+          "collision_mesh": "model://meshes/collision/hull__shell_convex.stl",
+          "stl_path": "meshes/visual/hull__shell.stl",
+          "stl_collision_path": "meshes/collision/hull__shell_convex.stl",
+          "material": {
+            "card": "demo",
+            "diffuse": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ],
+            "ambient": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ]
+          },
+          "pose": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "num_vertices": 130
+        }
+      ],
+      "num_solids": 1
+    },
+    {
+      "name": "pto_shaft",
+      "label": "pto_shaft",
+      "pose": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "solids": [
+        {
+          "name": "pto_shaft__mass",
+          "label": "mass",
+          "density_kg_m3": 2700.0,
+          "density_source": "demo",
+          "reference_mass_kg": 405.988668,
+          "reference_volume_m3": 0.150366173,
+          "reference_com_m": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference_inertia_kg_m2": [
+            [
+              19.238151218855,
+              -0.0,
+              0.0
+            ],
+            [
+              -0.0,
+              19.238151218855,
+              -0.0
+            ],
+            [
+              0.0,
+              -0.0,
+              32.386472413492
+            ]
+          ],
+          "visual_mesh": "model://meshes/visual/pto_shaft__mass.stl",
+          "collision_mesh": "model://meshes/collision/pto_shaft__mass_convex.stl",
+          "stl_path": "meshes/visual/pto_shaft__mass.stl",
+          "stl_collision_path": "meshes/collision/pto_shaft__mass_convex.stl",
+          "material": {
+            "card": "demo",
+            "diffuse": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ],
+            "ambient": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ]
+          },
+          "pose": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "num_vertices": 98
+        }
+      ],
+      "num_solids": 1
+    }
+  ],
+  "joints": [
+    {
+      "name": "pto_joint",
+      "label": "pto_joint",
+      "fc_type": "Slider",
+      "parent": "hull",
+      "child": "pto_shaft",
+      "origin": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "limits": {
+        "lower": -1.5,
+        "upper": 1.5,
+        "lower_enabled": true,
+        "upper_enabled": true,
+        "unit": "m",
+        "offset_m": 0.0
+      },
+      "activated": true,
+      "distance": 0.0,
+      "distance2": 0.0
+    }
+  ],
+  "skipped_joints": []
+}

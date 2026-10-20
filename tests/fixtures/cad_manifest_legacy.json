@@ -1,0 +1,174 @@
+{
+  "meta": {
+    "generator": "freecad_exporter.py",
+    "source_document": "wec_full",
+    "source_file": "cad/wec_full.FCStd",
+    "source_hash": "sha256:9fc42e9edc1ef99c67d05e4048d1100c3712e020f5c0e4f09f703bc9cf687b72",
+    "units": "SI (m, kg, rad)",
+    "created": "2026-09-30T18:22:05",
+    "tessellation_tolerance_mm": 2.0,
+    "root": "spar"
+  },
+  "links": [
+    {
+      "name": "spar",
+      "label": "Spar",
+      "pose": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "reference_mass_kg": 1200.0,
+      "density_kg_m3": 7850.0,
+      "material": {
+        "card": "steel",
+        "diffuse": [
+          0.5,
+          0.5,
+          0.55,
+          1.0
+        ],
+        "ambient": [
+          0.3,
+          0.3,
+          0.35,
+          1.0
+        ]
+      },
+      "stl_path": "meshes/visual/spar.stl",
+      "visual_mesh": "model://meshes/visual/spar.stl",
+      "collision_mesh": "model://meshes/collision/spar_convex.stl"
+    },
+    {
+      "name": "float",
+      "label": "Float",
+      "pose": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "reference_mass_kg": 320.0,
+      "density_kg_m3": 550.0,
+      "material": {
+        "card": "hdpe",
+        "diffuse": [
+          0.9,
+          0.9,
+          0.2,
+          1.0
+        ],
+        "ambient": [
+          0.5,
+          0.5,
+          0.1,
+          1.0
+        ]
+      },
+      "solids": [
+        {
+          "name": "float__shell",
+          "label": "float shell",
+          "pose": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "density_kg_m3": 550.0,
+          "density_source": "material card",
+          "reference_mass_kg": 320.0,
+          "reference_volume_m3": 0.581818,
+          "reference_com_m": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference_inertia_kg_m2": [
+            [
+              40.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              40.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              60.0
+            ]
+          ],
+          "material": {
+            "card": "hdpe",
+            "diffuse": [
+              0.9,
+              0.9,
+              0.2,
+              1.0
+            ],
+            "ambient": [
+              0.5,
+              0.5,
+              0.1,
+              1.0
+            ]
+          },
+          "num_vertices": 64
+        }
+      ]
+    }
+  ],
+  "joints": [
+    {
+      "name": "pto",
+      "label": "pto",
+      "fc_type": "Slider",
+      "parent": "spar",
+      "child": "float",
+      "origin": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "limits": {
+        "lower": -0.8,
+        "upper": 0.8,
+        "lower_enabled": true,
+        "upper_enabled": true,
+        "unit": "m",
+        "offset_m": 0.0
+      },
+      "activated": true,
+      "distance": 0.0,
+      "distance2": 0.0
+    }
+  ],
+  "skipped_joints": [
+    {
+      "label": "Frame001",
+      "reason": "riferimenti non risolvibili"
+    }
+  ]
+}

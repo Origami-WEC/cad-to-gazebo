@@ -19,6 +19,9 @@ classifiers = [
 # application (AppImage / conda), never by pip. See the "freecad" extra below.
 dependencies = [
   "numpy>=1.23",
+  # The fail-fast IR validator (cad.ir_schema) runs on every export, so
+  # jsonschema is a runtime dependency, not a dev one.
+  "jsonschema>=4.0",
 ]
 
 [project.optional-dependencies]
@@ -37,6 +40,11 @@ dev = ["pytest>=7.0", "ruff>=0.5"]
 # The repository root IS the "cad" package (consumed by maritime_ws as src/cad).
 package-dir = { "cad" = "." }
 packages = ["cad"]
+
+[tool.setuptools.package-data]
+# The IR contract travels with the code: cad.ir_schema loads it from its own
+# directory, so it must be present in an installed/submodule checkout too.
+cad = ["schema/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
