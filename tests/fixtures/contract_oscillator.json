@@ -1,0 +1,25 @@
+{
+  "device_type": "oscillating_surge_converter",
+  "root": "frame",
+  "density_kg_m3": 2700.0,
+  "material_card": "aluminium",
+  "parts": {
+    "shaft": {
+      "density_kg_m3": 7850.0,
+      "material_card": "steel"
+    }
+  },
+  "joints": [
+    {
+      "name": "surge slider",
+      "fc_type": "Slider",
+      "parent": "frame",
+      "child": "shaft",
+      "axis": [1.0, 0.0, 0.0],
+      "limits": {
+        "lower": -0.5,
+        "upper": 0.5
+      }
+    }
+  ]
+}

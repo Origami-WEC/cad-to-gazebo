@@ -1,26 +1,46 @@
 #!/usr/bin/env python3
-"""config_sync.py -- Allinea i config dipendenti da geometria/masse al manifest CAD.
+"""config_sync.py -- Allinea i config dipendenti da geometria/masse al CAD IR.
 
-Quando `config/cad_manifest.json` viene rigenerato (freecad_exporter.py o
-create_demo_model.py), questo modulo riallinea gli altri file di config:
+La fonte e' SEMPRE e SOLO il CAD IR v1 (`schema: "cad-to-gazebo/cad-ir/1"`,
+`docs/ir-v1.md`), letto e validato da `cad.ir_schema`. Quando
+`config/cad_manifest.json` viene rigenerato (freecad_exporter.py,
+create_demo_model.py o l'emettitore STEP), questo modulo riallinea gli altri
+file di config:
 
   config/pipeline.json
-    - model.root_link              <- meta.root del manifest
+    - model.root_link              <- meta.root dell'IR
     - model.joints[]               <- topologia + limiti esatti dal CAD
                                        (lower/upper/lower_enabled/
                                        upper_enabled/unit, SI)
     - model.joint_dynamics.*       <- una chiave per joint mobile (dinamica
                                        preservata per nome, default per i nuovi)
   config/hydrodynamics_params.json
-    - enable_links                 <- intersezione con i body/link del manifest
+    - enable_links                 <- intersezione con i body dell'IR
   config/mooring.json
-    - validazione fairlead (link esistente, pos_local nel bbox del link)
+    - validazione fairlead (body esistente, pos_local nel bbox del body)
     - break_tension_n / massa cavi  <- solo con write_mooring_derived=True
                                        (formule euristiche in mooring.heuristics)
 
 La topologia dei joint resta di pertinenza del CAD: qui non si inventano
-parent/child/limiti, si copiano dal manifest e si tiene solo la DINAMICA
+parent/child/limiti, si copiano dall'IR e si tiene solo la DINAMICA
 (damping, friction, molle, finecorsa) come overlay tarabile a mano.
+
+Contratto IR (C5)
+-----------------
+Il vecchio manifest "a tre chiavi" (`meta` + `links` + `joints`, pre-v1) NON
+e' piu' letto: il gate :func:`load_ir` rifiuta un documento senza il tag
+`schema: "cad-to-gazebo/cad-ir/1"`. Un file legacy sul disco si migra una
+volta sola, esplicitamente, con::
+
+    python -m cad.ir_schema --migrate nuovo.json vecchio.json
+
+Un consumatore in sola lettura che non deve bloccarsi su un file vecchio puo'
+usare ``--allow-legacy`` (migrazione in memoria, il file non viene toccato);
+lo stesso vale per la API con ``allow_legacy=True``.
+
+Le chiavi ``links[]`` eventualmente ancora presenti in un documento v1
+(compatibilita' in sola lettura per i consumatori vecchi) sono IGNORATE:
+contano solo ``bodies[]`` e ``joints[]``.
 
 Uso
 ---
@@ -44,6 +64,7 @@ if __package__ in (None, ""):
         sys.path.insert(0, _src)
 
 from cad import cad_assembly as ca
+from cad import ir_schema
 
 DEFAULT_WS = None  # risolto pigramente da ws_root
 
@@ -119,21 +140,58 @@ def _cfg_paths(ws: str) -> Dict[str, str]:
     }
 
 
-def total_mass_kg(manifest: dict) -> float:
-    """Massa totale di riferimento dal manifest (assembly o legacy)."""
+def load_ir(path: Optional[str] = None, ir: Optional[dict] = None, *,
+            allow_legacy: bool = False) -> dict:
+    """Legge e VALIDA il CAD IR v1 -- unico ingresso del modulo.
+
+    Passare ``path`` (file su disco) oppure ``ir`` (documento gia' in memoria,
+    tipicamente appena letto da un chiamante come `build_simulation.py`).
+
+    Un documento pre-v1 viene **rifiutato** con l'indicazione del comando di
+    migrazione, a meno di ``allow_legacy=True``: in quel caso viene migrato in
+    memoria (il file su disco non viene mai toccato), esattamente come fa
+    `cad.ir_schema.validate_file`.
+    """
+    if ir is None:
+        if not path:
+            raise ValueError("load_ir: serve 'path' oppure 'ir'")
+        if not os.path.exists(path):
+            raise FileNotFoundError(
+                "cad_manifest.json non trovato in {}".format(path))
+        return ir_schema.validate_file(path, allow_legacy=allow_legacy)
+    if not isinstance(ir, dict):
+        raise ir_schema.IRSchemaError(
+            ["<root>: il documento IR deve essere un oggetto JSON"],
+            source=path or "<memoria>")
+    if ir_schema.looks_legacy(ir):
+        if not allow_legacy:
+            raise ir_schema.IRSchemaError(
+                ["<root>.schema: atteso '{}', trovato {!r}. Il manifest a tre "
+                 "chiavi (meta/links/joints) non e' piu' letto: migralo una "
+                 "volta con `python -m cad.ir_schema --migrate nuovo.json "
+                 "vecchio.json`.".format(ir_schema.IR_SCHEMA, ir.get("schema"))],
+                source=path or "<memoria>")
+        ir = ir_schema.migrate_legacy(ir)
+    ir_schema.validate(ir, source=path or "<memoria>")
+    return ir
+
+
+def total_mass_kg(ir: dict) -> float:
+    """Massa totale di riferimento dall'IR (somma dei solidi dei body).
+
+    Un eventuale ``links[]`` residuo in un documento v1 viene ignorato: la
+    massa dei link migrati e' gia' dentro i solidi dei body.
+    """
     total = 0.0
-    for body in manifest.get("bodies") or []:
+    for body in ir.get("bodies") or []:
         for solid in body.get("solids") or []:
             total += float(solid.get("reference_mass_kg") or 0.0)
-    for link in manifest.get("links") or []:
-        total += float(link.get("reference_mass_kg") or 0.0)
     return total
 
 
-def body_names(manifest: dict) -> List[str]:
-    names = [b["name"] for b in manifest.get("bodies") or [] if b.get("name")]
-    names += [link["name"] for link in manifest.get("links") or [] if link.get("name")]
-    return names
+def body_names(ir: dict) -> List[str]:
+    """Nomi dei body dell'IR. Un eventuale ``links[]`` residuo si ignora."""
+    return [b["name"] for b in ir.get("bodies") or [] if b.get("name")]
 
 
 def movable_joints(manifest: dict) -> List[dict]:
@@ -200,12 +258,9 @@ def _migrate_entry_dynamics(entry: dict, current: dict,
 
 def sync_pipeline_joints(manifest: dict, pipeline: dict,
                          report: SyncReport) -> bool:
-    """Rigenera model.joints / model.joint_dynamics dai joint del CAD."""
+    """Rigenera model.joints / model.joint_dynamics dai joint del CAD IR."""
     joints = movable_joints(manifest)
     if not joints and not (manifest.get("joints") or []):
-        if "links" in manifest and "bodies" not in manifest:
-            report.preserved.append("pipeline.model.joints (manifest legacy)")
-            return False
         report.preserved.append("pipeline.model.joints (nessun joint mobile)")
         return False
 
@@ -352,17 +407,13 @@ def validate_mooring_geometry(manifest: dict, mooring: dict, ws: str,
         box = body_aabb(body, ws)
         if box is not None:
             aabbs[body["name"]] = box
-    for link in manifest.get("links") or []:
-        box = body_aabb({"solids": [link]}, ws)
-        if box is not None:
-            aabbs[link["name"]] = box
 
     for fl in mooring.get("fairleads") or []:
         name = fl.get("name", "?")
         link = fl.get("link", "hull")
         if valid and link not in valid:
             report.warnings.append(
-                "mooring.fairlead '{}': link '{}' non presente nel manifest "
+                "mooring.fairlead '{}': body '{}' non presente nell'IR "
                 "(body: {})".format(name, link, ", ".join(sorted(valid))))
             continue
         box = aabbs.get(link)
@@ -497,23 +548,28 @@ def sync_from_manifest(manifest: Optional[dict] = None,
                        ws: Optional[str] = None,
                        write: bool = True,
                        write_mooring_derived: bool = False,
-                       report: Optional[SyncReport] = None) -> SyncReport:
-    """Allinea pipeline/hydro/mooring al manifest. Idempotente."""
+                       report: Optional[SyncReport] = None,
+                       allow_legacy: bool = False) -> SyncReport:
+    """Allinea pipeline/hydro/mooring al CAD IR v1. Idempotente.
+
+    ``manifest`` e' un documento IR (oppure ``None`` per leggerlo da
+    ``config/cad_manifest.json``). In entrambi i casi si passa dal gate
+    :func:`load_ir`: un manifest pre-v1 viene rifiutato con l'indicazione del
+    comando di migrazione, oppure migrato in memoria con
+    ``allow_legacy=True``.
+    """
     ws = _resolve_ws(ws)
     paths = _cfg_paths(ws)
-    if manifest is None:
-        manifest = _load_json(paths["manifest"])
-    if not manifest:
-        raise FileNotFoundError(
-            "cad_manifest.json non trovato in {}".format(paths["manifest"]))
+    manifest = load_ir(
+        path=paths["manifest"] if manifest is None else None,
+        ir=manifest, allow_legacy=allow_legacy)
     if report is None:
         report = SyncReport()
 
     pipeline = _load_json(paths["pipeline"])
     if pipeline is not None:
         sync_root_link(manifest, pipeline, report)
-        if "bodies" in manifest or "joints" in manifest:
-            sync_pipeline_joints(manifest, pipeline, report)
+        sync_pipeline_joints(manifest, pipeline, report)
         validate_joint_dynamics(manifest, pipeline, report)
         if write:
             _write_json(paths["pipeline"], pipeline)
@@ -538,7 +594,7 @@ def sync_from_manifest(manifest: Optional[dict] = None,
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         description="Allinea config joint/root/enable_links/ormeggio al "
-                    "manifest CAD")
+                    "CAD IR (cad-to-gazebo/cad-ir/1)")
     parser.add_argument("--manifest", default=None,
                         help="path a cad_manifest.json (default: config/)")
     parser.add_argument("--ws", default=None,
@@ -547,17 +603,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                         help="riscrive break_tension_n dall'euristica di massa")
     parser.add_argument("--dry-run", action="store_true",
                         help="calcola e stampa senza scrivere i config")
+    parser.add_argument("--allow-legacy", action="store_true",
+                        help="migra in memoria un manifest pre-v1 invece di "
+                             "rifiutarlo (il file su disco non viene toccato)")
     args = parser.parse_args(argv)
 
     ws = _resolve_ws(args.ws)
     manifest = None
     if args.manifest:
-        manifest = _load_json(args.manifest)
+        manifest = load_ir(path=args.manifest,
+                           allow_legacy=args.allow_legacy)
     report = sync_from_manifest(
         manifest=manifest,
         ws=ws,
         write=not args.dry_run,
-        write_mooring_derived=args.write_mooring_derived)
+        write_mooring_derived=args.write_mooring_derived,
+        allow_legacy=args.allow_legacy)
     report.log()
     return 0
 

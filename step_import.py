@@ -379,13 +379,17 @@ class _Traversal:
     the placement that make the node unique.
     """
 
-    def __init__(self, ocp: dict, shape_tool, color_tool):
+    def __init__(self, ocp: dict, shape_tool, color_tool, shapes_out: dict | None = None):
         self.ocp = ocp
         self.shape_tool = shape_tool
         self.color_tool = color_tool
         self.assemblies: list[dict] = []
         self.parts: list[dict] = []
         self._sibling_names: dict[tuple[str, str], int] = {}
+        #: When the caller passes a dict, every part's unplaced (link-local)
+        #: geometry is stored in it under the part path, so a downstream step
+        #: (``step_to_ir`` tessellation) does not have to re-read the STEP file.
+        self.shapes_out = shapes_out
 
     def walk(self, label, parent_path: str, parent_transform, depth: int) -> str:
         ocp = self.ocp
@@ -442,7 +446,10 @@ class _Traversal:
         shape_tool = self.shape_tool
         # ``GetShape`` on the referent gives unplaced geometry; applying the
         # accumulated transform yields the shape in assembly coordinates.
-        world_shape = shape_tool.GetShape_s(target).Moved(transform)
+        local_shape = shape_tool.GetShape_s(target)
+        world_shape = local_shape.Moved(transform)
+        if self.shapes_out is not None:
+            self.shapes_out[path] = local_shape
         faces = _count_sub_shapes(ocp, world_shape, ocp["TopAbs_FACE"])
         solids = _count_sub_shapes(ocp, world_shape, ocp["TopAbs_SOLID"])
         bounds = _bounding_box(ocp, world_shape)
@@ -465,12 +472,20 @@ class _Traversal:
 # --------------------------------------------------------------------------- #
 
 
-def import_step(step_path: str | Path, *, source_path: str | None = None) -> dict:
+def import_step(step_path: str | Path, *, source_path: str | None = None,
+                shapes_out: dict | None = None) -> dict:
     """Read ``step_path`` and return the IR dict documented in the module header.
 
     ``source_path`` overrides the ``source.path`` recorded in the IR (used when
     the file was fetched to a temporary location and the caller wants the IR to
     keep pointing at the canonical name).
+
+    ``shapes_out`` is an optional dict the caller owns: on return it maps every
+    part ``path`` to that part's unplaced (link-local) ``TopoDS_Shape``.
+    :mod:`cad.step_to_ir` uses it to tessellate the parts into STL without
+    reading the STEP file a second time. Shapes are OCCT objects: they are only
+    valid while the kernel document is alive, so consume them in the same
+    process.
 
     Raises :class:`StepImportError` for a missing/unreadable file, a file whose
     STEP header is absent or unreadable, a file the kernel refuses to parse,
@@ -506,7 +521,7 @@ def import_step(step_path: str | Path, *, source_path: str | None = None) -> dic
             "shape representation the kernel understands" % step_file
         )
 
-    traversal = _Traversal(ocp, shape_tool, color_tool)
+    traversal = _Traversal(ocp, shape_tool, color_tool, shapes_out=shapes_out)
     roots = ocp["Sequence_TDF_Label"]()
     shape_tool.GetFreeShapes(roots)
     identity = ocp["TopLoc_Location"]()
