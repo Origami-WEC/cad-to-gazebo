@@ -104,3 +104,83 @@ def write_ap242_assembly(
     status = writer.Write(str(target))
     assert status == IFSelect_ReturnStatus.IFSelect_RetDone, status
     return target
+
+
+def write_ap242_multi_solid(
+    path: str | Path,
+    name: str = "fixture_multi_solid",
+    body_part: str = "rail",
+    single_part: str = "frame",
+) -> Path:
+    """Write an AP242 assembly with one part that holds **two** OCCT solids.
+
+    It is the reduced, committable stand-in for the real ``full_transmission``
+    case: a part whose shape is a ``TopoDS_Compound`` of two disjoint boxes
+    (a body + a slider modelled inside the same CAD part).  ``step-ir/1``
+    counts two solids for it, so the bridge must emit two ``solids`` entries
+    and ``num_solids == 2`` -- the invariant ``num_solids == len(solids)`` that
+    the old one-solid-per-part emission violated.
+
+    The assembly also carries a normal one-solid part, so the test can assert
+    that the multi-solid path does not change single-solid output.
+    """
+    from OCP.BRep import BRep_Builder
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
+    from OCP.gp import gp_Trsf, gp_Vec
+    from OCP.IFSelect import IFSelect_ReturnStatus
+    from OCP.Interface import Interface_Static
+    from OCP.STEPCAFControl import STEPCAFControl_Writer
+    from OCP.TCollection import TCollection_ExtendedString
+    from OCP.TDataStd import TDataStd_Name
+    from OCP.TDocStd import TDocStd_Document
+    from OCP.TopLoc import TopLoc_Location
+    from OCP.TopoDS import TopoDS_Compound
+    from OCP.XCAFApp import XCAFApp_Application
+    from OCP.XCAFDoc import XCAFDoc_DocumentTool
+
+    target = Path(path)
+    application = XCAFApp_Application.GetApplication_s()
+    document = TDocStd_Document(TCollection_ExtendedString("XmlXCAF"))
+    application.NewDocument(TCollection_ExtendedString("XmlXCAF"), document)
+    shapes = XCAFDoc_DocumentTool.ShapeTool_s(document.Main())
+
+    root = shapes.NewShape()
+    TDataStd_Name.Set_s(root, TCollection_ExtendedString(name))
+
+    # Un solo oggetto CAD (una parte) ma due solidi distinti: e' il caso che
+    # in full_transmission.step fa scattare "num_solids=2 ma 1 solidi".
+    # I due box sono disgiunti in Y: due TopoDS_Solid reali dentro lo stesso
+    # TopoDS_Compound, cosi' il conteggio solidi di step-ir/1 e' 2.
+    from OCP.gp import gp_Pnt
+
+    builder = BRep_Builder()
+    compound = TopoDS_Compound()
+    builder.MakeCompound(compound)
+    builder.Add(compound, BRepPrimAPI_MakeBox(30.0, 8.0, 8.0).Shape())
+    builder.Add(compound, BRepPrimAPI_MakeBox(gp_Pnt(0.0, 20.0, 0.0),
+                                              30.0, 8.0, 8.0).Shape())
+    definition = shapes.AddShape(compound, False)
+    TDataStd_Name.Set_s(definition, TCollection_ExtendedString(body_part))
+    component = shapes.AddComponent(root, definition, TopLoc_Location())
+    TDataStd_Name.Set_s(component, TCollection_ExtendedString(body_part))
+
+    single = shapes.AddShape(BRepPrimAPI_MakeBox(20.0, 10.0, 5.0).Shape(), False)
+    TDataStd_Name.Set_s(single, TCollection_ExtendedString(single_part))
+    transform = gp_Trsf()
+    transform.SetTranslation(gp_Vec(50.0, 0.0, 0.0))
+    single_component = shapes.AddComponent(
+        root, single, TopLoc_Location(transform))
+    TDataStd_Name.Set_s(single_component, TCollection_ExtendedString(single_part))
+
+    shapes.UpdateAssemblies()
+
+    writer = STEPCAFControl_Writer()
+    assert Interface_Static.SetCVal_s("write.step.schema", "AP242DIS"), (
+        "this OCCT build does not accept the AP242 schema switch"
+    )
+    writer.SetNameMode(True)
+    writer.SetColorMode(True)
+    assert writer.Transfer(document)
+    status = writer.Write(str(target))
+    assert status == IFSelect_ReturnStatus.IFSelect_RetDone, status
+    return target

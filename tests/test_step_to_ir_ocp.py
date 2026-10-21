@@ -27,7 +27,7 @@ pytest.importorskip(
     reason="OCCT bindings absent: install with `python -m pip install 'cad-to-gazebo[step]'`",
 )
 
-from step_fixtures import write_ap242_assembly  # noqa: E402
+from step_fixtures import find_mechanism_step, write_ap242_assembly, write_ap242_multi_solid  # noqa: E402
 
 import ir_schema  # noqa: E402
 import naming  # noqa: E402
@@ -247,3 +247,99 @@ def test_the_ir_can_be_written_to_disk_and_read_back(manifest, tmp_path):
     written = json.loads(path.read_text(encoding="utf-8"))
     assert [body["name"] for body in written["bodies"]] == ["frame", "shaft"]
     assert written["meta"]["generator"] == "cad.step_to_ir"
+
+
+# --------------------------------------------------------------------------- #
+# parti multi-solido: una parte = N solidi OCCT -> N solidi IR
+# --------------------------------------------------------------------------- #
+
+#: Volume di ciascuno dei due box del fixture ``write_ap242_multi_solid``.
+MULTI_BOX_MM3 = 30.0 * 8.0 * 8.0
+
+
+@pytest.fixture(scope="module")
+def multi_step(tmp_path_factory) -> Path:
+    return write_ap242_multi_solid(
+        tmp_path_factory.mktemp("multi") / "assembly_multi.step")
+
+
+@pytest.fixture(scope="module")
+def multi_manifest(multi_step, tmp_path_factory) -> tuple[dict, Path]:
+    ws = tmp_path_factory.mktemp("ws_multi")
+    document = convert_step(multi_step, mesh_root=str(ws), contract=None,
+                            source_document="fixture AP242 multi-solido")
+    return document, ws
+
+
+def test_step_ir_counts_two_solids_for_a_compound_part(multi_step):
+    shapes: dict = {}
+    ir = step_import.import_step(multi_step, shapes_out=shapes)
+    by_path = {part["path"]: part for part in ir["parts"]}
+    assert by_path["fixture_multi_solid/rail"]["solids"] == 2
+    assert by_path["fixture_multi_solid/frame"]["solids"] == 1
+    assert len(shapes) == 2
+
+
+def test_the_bridge_emits_one_ir_solid_per_occt_solid(multi_manifest):
+    # Il vecchio ponte emetteva UN solido per parte ma copiava num_solids da
+    # step-ir/1: su una parte a 2 solidi la validazione fail-fast moriva con
+    # "num_solids=2 ma 1 solidi".  Ora num_solids e' il numero di solidi emessi.
+    document, _ = multi_manifest
+    ir_schema.validate(document, source="bridge multi-solido")
+    bodies = {body["name"]: body for body in document["bodies"]}
+    rail = bodies["rail"]
+    assert rail["num_solids"] == 2
+    assert len(rail["solids"]) == 2
+    assert [solid["name"] for solid in rail["solids"]] == ["rail", "rail_2"]
+    # Ogni solido porta il proprio volume: non un aggregato schiacciato in uno.
+    total = sum(solid["reference_volume_m3"] for solid in rail["solids"])
+    assert total == pytest.approx(2 * MULTI_BOX_MM3 * 1e-9, rel=1e-9)
+
+
+def test_multi_solid_meshes_are_distinct_and_reproduce_each_solid(multi_manifest):
+    document, ws = multi_manifest
+    rail = next(body for body in document["bodies"] if body["name"] == "rail")
+    paths = [solid["stl_path"] for solid in rail["solids"]]
+    assert len(set(paths)) == 2, "due solidi non possono condividere la mesh"
+    for solid, volume_mm3 in zip(rail["solids"], (MULTI_BOX_MM3, MULTI_BOX_MM3)):
+        target = ws / solid["stl_path"]
+        assert target.is_file() and target.stat().st_size > 0
+        assert solid["visual_mesh"] == "model://" + solid["stl_path"]
+        assert _mesh_volume_mm3(_stl_triangles(target)) == pytest.approx(
+            volume_mm3, rel=1e-6)
+
+
+def test_single_solid_parts_keep_the_one_solid_output(multi_manifest):
+    document, _ = multi_manifest
+    frame = next(body for body in document["bodies"] if body["name"] == "frame")
+    assert frame["num_solids"] == 1
+    assert [solid["name"] for solid in frame["solids"]] == ["frame"]
+    assert frame["solids"][0]["stl_path"] == naming.visual_mesh_name("frame", "frame")
+
+
+# --------------------------------------------------------------------------- #
+# il modello reale: la catena STEP -> IR gira invece di fermarsi al validator
+# --------------------------------------------------------------------------- #
+
+REAL_STEP = find_mechanism_step()
+
+
+@pytest.mark.skipif(
+    REAL_STEP is None,
+    reason=(
+        "il fixture reale full_transmission.step non e' su questa macchina; "
+        "imposta CAD_TO_GAZEBO_STEP_FIXTURE per puntare a un checkout"
+    ),
+)
+def test_the_real_transmission_converts_to_a_valid_ir(tmp_path):
+    step_ir = step_import.import_step(REAL_STEP)
+    document = convert_step(REAL_STEP, mesh_root=str(tmp_path), contract=None)
+    ir_schema.validate(document, source="bridge reale")
+    assert len(document["bodies"]) == len(step_ir["parts"])
+    for body in document["bodies"]:
+        assert body["num_solids"] == len(body["solids"]) >= 1
+    # Il difetto originale: qua dentro c'e' almeno una parte multi-solido.
+    assert any(body["num_solids"] > 1 for body in document["bodies"]), (
+        "il fixture reale deve contenere una parte multi-solido, altrimenti il "
+        "test non copre il caso C7")
+

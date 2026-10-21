@@ -177,6 +177,15 @@ The split of responsibility is explicit and is the decision this block records:
   inertia tensor are computed by the kernel on the B-rep. The STEP file is read
   once: `step_import.import_step(shapes_out=...)` hands the OCCT shapes to the
   bridge, which tessellates them into `meshes/visual/<body>__<solid>.stl`.
+* **a part may hold more than one solid.** A STEP part can be a compound of N
+  solids — the real `full_transmission.step` has two (the SBR20 linear
+  supported rails, each modelled as rail + slider in one CAD part). The bridge
+  emits **one IR solid per OCCT solid**, each with its own volume, mass, CoM,
+  inertia and mesh (`<body>__<solid>.stl`), and sets `num_solids` to the number
+  of solids *emitted*, so the contract invariant `num_solids == len(solids)`
+  (see `docs/ir-v1.md`) holds by construction. Collapsing them into a single
+  aggregate solid would sum the masses but lose the per-solid split the SDF
+  collision/model step needs, and was the defect this fixes.
 * **joint topology and materials are *declared*, not inferred.** A joint is not
   a geometric fact — a bolt and a slider have the same faces — and no density is
   written in a STEP file. They arrive in a JSON contract (`--contract`).
