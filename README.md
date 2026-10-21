@@ -34,6 +34,7 @@ imported lazily, only inside the export layer that actually runs under
 | IR → SDF | `export_manifest.py`, `config_sync.py` | Regenerates the manifest + meshes and reconciles the derived configs (`pipeline.json`, `hydrodynamics_params.json`, `mooring.json`). |
 | Demo fallback | `create_demo_model.py` | Builds a manifest without CAD when no `.FCStd` is available. |
 | STEP → IR (headless) | `step_import.py` | Reads a STEP AP242/AP214/AP203 exchange file with the OCCT kernel and emits the IR: named, located assemblies and parts, in millimetres. No FreeCAD, no GUI, no X. |
+| IR → URDF (ROS) | `urdf_skeleton.py` | Emits the kinematic skeleton for ROS: one `<link>` per body, one `<joint>` per joint, and nothing else — no geometry, no dynamics, no material. TF / RViz / `robot_state_publisher`. |
 
 ## IR contract v1 (`cad-to-gazebo/cad-ir/1`)
 
@@ -55,6 +56,9 @@ pinned in three places:
 * [`docs/sdf-artifacts.md`](docs/sdf-artifacts.md) — the SDF-ready artefact
   (`cad.sdf_artifacts`): collision-hull ladder, PBR materials, aggregated
   inertia, frames/anchors, the degradation table and the reproducibility gate.
+* [`docs/urdf-skeleton.md`](docs/urdf-skeleton.md) — the kinematic URDF skeleton
+  (`cad.urdf_skeleton`): the only object this repository derives from the IR, the
+  joint-type mapping and its escape hatch, and what "equivalent to the IR" means.
 
 The validator is **fail-fast**: `freecad_exporter.py` and `create_demo_model.py`
 refuse to write a manifest that breaks the contract, `export_manifest.py` gates
@@ -226,6 +230,43 @@ Two severity levels: **errors** are what `gz sdf` itself rejects and always
 fail; **warnings** are physical hygiene SDFormat silently defaults (missing
 `<inertial>`, non-positive mass, a link with no collision, a disconnected link).
 `--strict` promotes warnings to failures, which is what the harness uses.
+
+## Kinematic URDF skeleton (`cad.urdf_skeleton`)
+
+The ROS side needs a *kinematic* description (TF, RViz, `robot_state_publisher`),
+not a second dynamics model. `sdformat_urdf` would translate the SDF into URDF,
+but only understands URDF's joint vocabulary: a CAD model with a cylindrical,
+ball or screw joint fails that translation. So the skeleton is derived from the
+same single source of truth the SDF is derived from — the IR:
+
+```bash
+python -m cad.urdf_skeleton --manifest config/cad_manifest.json --out m.urdf
+python -m cad.urdf_skeleton --manifest config/cad_manifest.json --strict
+```
+
+One `<link>` per IR body, one `<joint>` per IR joint, same names, same
+parent/child edges, same axes, same origins — and **nothing else**: no
+`<inertial>`, `<visual>`, `<collision>`, `<material>`, `<gazebo>`, `<plugin>`,
+`<transmission>` or `<sensor>` element exists in the output, and the validator
+treats one appearing as an *error*. A skeleton cannot drift from the IR because
+it carries nothing that can drift; geometry and dynamics stay in
+`cad.sdf_artifacts`.
+
+The IR's CAD vocabulary is collapsed onto URDF's four joint types by a
+documented table (`Fixed`, `Revolute`, `Continuous`, `Slider`/`Prismatic`,
+`Cylindrical`, `Screw`, `RackPinion`/`Gear`/`Belt`, `Ball`, `Distance`), a
+`revolute` joint with no enabled bound becomes `continuous`, and a joint type
+outside the table **fails the run** instead of being guessed — unless the joint
+declares its own `urdf_type`. A body that no joint attaches stays its own root
+and is reported as a warning (never silently bolted to the first link):
+`--strict` rejects it, which is what CI does.
+
+`tests/fixtures/urdf_skeleton_sample.urdf` is the byte-exact output for
+`tests/fixtures/cad_manifest_urdf_skeleton.json`, and CI regenerates it and
+diffs. The test suite proves equivalence with the IR field by field (link set,
+joint set, edges, axes, poses, the type table written out in the test), asserts
+the lean tag set as an equality, and runs `check_urdf` when the ROS CLI is
+present. Full contract: [`docs/urdf-skeleton.md`](docs/urdf-skeleton.md).
 
 ## End-to-end: one command
 

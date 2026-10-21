@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<!-- cad-to-gazebo kinematic skeleton emitter cad-to-gazebo/0.1.0 | ir=cad-to-gazebo/cad-ir/1 | root=hull -->
+<robot name="hull">
+  <link name="hull"/>
+  <link name="pto_shaft"/>
+  <link name="keel"/>
+  <link name="flap"/>
+  <link name="rotor"/>
+  <link name="piston"/>
+  <joint name="pto_joint" type="prismatic">
+    <parent link="hull"/>
+    <child link="pto_shaft"/>
+    <origin xyz="0 0 0.4" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="1000" velocity="100" lower="-0.6" upper="0.6"/>
+  </joint>
+  <joint name="keel_joint" type="fixed">
+    <parent link="hull"/>
+    <child link="keel"/>
+    <origin xyz="0 0 -0.4" rpy="0 0 0"/>
+  </joint>
+  <joint name="hinge_joint" type="revolute">
+    <parent link="hull"/>
+    <child link="flap"/>
+    <origin xyz="0.5 0 0" rpy="0.523598776 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit effort="120" velocity="3.5" lower="-0.3" upper="0.3"/>
+  </joint>
+  <joint name="spin_joint" type="continuous">
+    <parent link="hull"/>
+    <child link="rotor"/>
+    <origin xyz="0 0.6 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="1000" velocity="100"/>
+  </joint>
+  <joint name="piston_joint" type="prismatic">
+    <parent link="hull"/>
+    <child link="piston"/>
+    <origin xyz="0 -0.6 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="1000" velocity="100" lower="-0.25" upper="0.25"/>
+  </joint>
+</robot>
