@@ -590,13 +590,46 @@ def plan(step_ir: dict, *, contract: Optional[dict] = None,
     }
 
 
+def _sub_solids(shape: Any, where: str) -> List[Any]:
+    """I solidi OCCT che compongono la forma di una parte.
+
+    Una parte STEP puo' essere un ``TopoDS_Compound`` con N solidi (es. una
+    guida lineare modellata come corpo + pattino nella stessa parte): il ponte
+    deve emetterne uno per solido, con massa, inerzia, CoM e mesh propri, non
+    schiacciarli in un unico solido aggregato.  Per una parte a un solo solido
+    (il caso normale) la lista ha un elemento, cioe' la forma stessa.
+    """
+    from OCP.TopAbs import TopAbs_SOLID
+    from OCP.TopExp import TopExp_Explorer
+
+    explorer = TopExp_Explorer(shape, TopAbs_SOLID)
+    found = []
+    while explorer.More():
+        found.append(explorer.Current())
+        explorer.Next()
+    if not found:
+        # Nessun TopAbs_SOLID sotto la forma (es. shell/compound vuoto): non e'
+        # un B-rep chiuso e _mass_properties lo rifiutera' con un messaggio
+        # esplicito, invece di emettere silenziosamente zero solidi.
+        raise StepToIrError(
+            "%s: the shape contains no OCCT solid (not a closed B-rep)" % where)
+    return found
+
+
 def _solid_of(entry: dict, shape: Any, mesh_root: Optional[str],
-              tolerance: float) -> dict:
-    """Solido IR di una parte: massa/inerzia dal B-rep, mesh se ``mesh_root``."""
+              tolerance: float, *, solid_name: Optional[str] = None,
+              label: Optional[str] = None) -> dict:
+    """Solido IR di una parte: massa/inerzia dal B-rep, mesh se ``mesh_root``.
+
+    ``solid_name`` distingue i solidi di una parte multi-solido (il primo
+    mantiene il nome del body, gli altri ricevono ``<body>_2``, ...); ``label``
+    e' il nome CAD della parte, ripetuto su ogni solido per tracciabilita'.
+    """
     where = "part %r" % entry["path"]
+    name = solid_name or entry["body"]
     solid: Dict[str, Any] = {
-        "name": entry["body"],
-        "label": entry["label"],
+        "name": name,
+        "label": entry["label"] if label is None else label,
         "pose": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
         "density_kg_m3": entry["density_kg_m3"],
         "density_source": entry["density_source"],
@@ -613,7 +646,7 @@ def _solid_of(entry: dict, shape: Any, mesh_root: Optional[str],
         [round(value, 12) for value in row] for row in props["inertia_kg_m2"]
     ]
     if mesh_root is not None:
-        relative = naming.visual_mesh_name(entry["body"], entry["body"])
+        relative = naming.visual_mesh_name(entry["body"], name)
         solid["num_vertices"] = _write_stl(shape, Path(mesh_root) / relative,
                                            tolerance, where)
         solid["visual_mesh"] = "model://" + relative
@@ -658,13 +691,25 @@ def convert(step_ir: dict, *, shapes: dict,
     for entry in blueprint["parts"]:
         part = entry["part"]
         where = "part %r" % entry["path"]
+        # Una parte puo' essere un compound di N solidi reali: si emette un
+        # solido IR per ciascuno, con nome unico nel body (il primo tiene il
+        # nome del body, gli altri <body>_2, ...).  ``num_solids`` e' il numero
+        # di solidi *emessi*, non il conteggio di step-ir/1: e' proprio la
+        # riconciliazione che il validator fail-fast pretende
+        # (``num_solids == len(solids)``).
+        pieces = _sub_solids(shapes[entry["path"]], where)
+        taken_solids: set = set()
+        solids = [
+            _solid_of(entry, piece, mesh_root, blueprint["tolerance_mm"],
+                      solid_name=naming.unique(entry["body"], taken_solids))
+            for piece in pieces
+        ]
         bodies.append({
             "name": entry["body"],
             "label": entry["label"],
             "pose": _pose_from_transform(part.get("transform"), where),
-            "solids": [_solid_of(entry, shapes[entry["path"]], mesh_root,
-                                 blueprint["tolerance_mm"])],
-            "num_solids": int(part.get("solids") or 0),
+            "solids": solids,
+            "num_solids": len(solids),
             "cad_path": entry["path"],
             "bbox": part.get("bbox"),
         })
