@@ -49,6 +49,10 @@ pinned in three places:
 * [`docs/ir-v1.md`](docs/ir-v1.md) — section-by-section field contract,
   versioning policy, the validator's two passes and where it runs, and the
   documented pre-v1 → v1 migration.
+* [`docs/cad-contract.md`](docs/cad-contract.md) — the `--contract` the caller
+  writes: `parts`, `joints`, the `frames`/LCS, `anchors` and `sensors` sections,
+  the reference-resolution rules, and the five non-native FreeCAD joint types
+  with their `resolved_fc_type` escape hatch.
 * [`docs/naming-contract.md`](docs/naming-contract.md) — who names what, the
   SDF ↔ URDF ↔ ROS name mapping and the sanitisation rules. One implementation
   (`cad.naming.sanitize`), no second variant: `freecad_exporter.py` binds it

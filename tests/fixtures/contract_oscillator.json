@@ -20,6 +20,44 @@
         "lower": -0.5,
         "upper": 0.5
       }
+    },
+    {
+      "name": "guide perpendicularity",
+      "fc_type": "Perpendicular",
+      "resolved_fc_type": "Fixed",
+      "parent": "frame",
+      "child": "shaft"
+    }
+  ],
+  "frames": [
+    {
+      "name": "surge_axis",
+      "body": "frame",
+      "pose": [0.0, 0.0, 0.0],
+      "description": "asse di corsa del PTO, sul telaio"
+    },
+    {
+      "name": "shaft_tip",
+      "body": "shaft",
+      "pose": [0.4, 0.0, 0.0]
+    }
+  ],
+  "anchors": [
+    {
+      "name": "pto_imu",
+      "kind": "sensor",
+      "body": "frame",
+      "frame": "frame__surge_axis",
+      "direction": [1.0, 0.0, 0.0]
+    }
+  ],
+  "sensors": [
+    {
+      "name": "surge",
+      "type": "imu",
+      "frame": "surge_axis",
+      "rate_hz": 100.0,
+      "topic": "/osc/imu"
     }
   ]
 }

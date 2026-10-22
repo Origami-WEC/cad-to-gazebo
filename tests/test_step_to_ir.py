@@ -374,6 +374,180 @@ def test_an_unknown_root_is_refused():
 
 
 # --------------------------------------------------------------------------- #
+# I 5 giunti non nativi: risolti a monte, o congelati come posa fissa
+# --------------------------------------------------------------------------- #
+
+
+def test_the_five_non_native_joint_types_are_the_expected_ones():
+    assert step_to_ir.NON_NATIVE_JOINT_TYPES == frozenset(
+        {"distance", "parallel", "perpendicular", "angle", "rackpinion"})
+
+
+def test_a_non_native_joint_must_be_resolved_at_the_source():
+    # Un vincolo non e' un DOF: senza 'resolved_fc_type' il ponte si ferma e
+    # dice quali sono i tipi per cui serve una risoluzione.
+    with pytest.raises(StepToIrError, match="resolved_fc_type"):
+        plan(_step_ir(), contract=_contract(joints=[
+            {"fc_type": "Perpendicular", "parent": "frame", "child": "shaft"}]))
+    with pytest.raises(StepToIrError, match="rackpinion"):
+        plan(_step_ir(), contract=_contract(joints=[
+            {"fc_type": "RackPinion", "parent": "frame", "child": "shaft"}]))
+
+
+def test_a_non_native_joint_resolved_to_a_native_type_keeps_the_residual():
+    joint = plan(_step_ir(), contract=_contract(joints=[
+        {"name": "rack", "fc_type": "RackPinion", "resolved_fc_type": "Revolute",
+         "parent": "frame", "child": "shaft", "axis": [1.0, 0.0, 0.0],
+         "limits": {"lower": -1.0, "upper": 1.0}}]))["joints"][0]
+    assert joint["fc_type"] == "Revolute"
+    assert joint["cad_constraint"] == "RackPinion"
+    assert joint["frozen"] is False
+    assert joint["limits"]["unit"] == "rad"
+
+
+def test_a_non_native_joint_frozen_as_fixed_needs_no_stroke():
+    # Congelare come posa fissa e' la seconda via: il vincolo non ha un DOF che
+    # l'IR possa portare, quindi i limiti non si inventano -- nascono 0 .. 0.
+    joint = plan(_step_ir(), contract=_contract(joints=[
+        {"fc_type": "Angle", "resolved_fc_type": "Fixed",
+         "parent": "frame", "child": "shaft"}]))["joints"][0]
+    assert joint["fc_type"] == "Fixed"
+    assert joint["cad_constraint"] == "Angle"
+    assert joint["frozen"] is True
+    assert joint["limits"]["lower"] == 0.0
+    assert joint["limits"]["upper"] == 0.0
+    assert joint["limits"]["lower_enabled"] is False
+
+
+def test_a_bogus_resolved_type_is_refused():
+    with pytest.raises(StepToIrError, match="not a native type"):
+        plan(_step_ir(), contract=_contract(joints=[
+            {"fc_type": "Distance", "resolved_fc_type": "Teleport",
+             "parent": "frame", "child": "shaft"}]))
+
+
+def test_a_native_joint_carries_no_constraint_residue():
+    joint = plan(_step_ir(), contract=_contract(joints=[
+        {"fc_type": "Slider", "parent": "frame", "child": "shaft",
+         "axis": [1.0, 0.0, 0.0], "limits": {"lower": 0.0, "upper": 1.0}}]))["joints"][0]
+    assert "cad_constraint" not in joint
+
+
+# --------------------------------------------------------------------------- #
+# LCS, attacchi e sensori: topologia dichiarata, verificata contro i body
+# --------------------------------------------------------------------------- #
+
+
+def test_without_a_contract_the_three_sections_are_empty_not_missing():
+    blueprint = plan(_step_ir(), contract=_contract())
+    assert blueprint["frames"] == []
+    assert blueprint["anchors"] == []
+    assert blueprint["sensors"] == []
+
+
+def test_frames_come_from_the_contract_named_from_their_body():
+    frames = plan(_step_ir(), contract=_contract(frames=[
+        {"name": "pto_lcs", "body": "frame", "pose": [0.1, 0.0, 0.2],
+         "description": "asse di corsa"}]))["frames"]
+    assert frames == [{"name": "frame__pto_lcs", "body": "frame",
+                       "pose": [0.1, 0.0, 0.2, 0.0, 0.0, 0.0, 1.0],
+                       "description": "asse di corsa"}]
+
+
+def test_a_frame_on_a_body_that_does_not_exist_is_refused():
+    with pytest.raises(StepToIrError, match="ghost"):
+        plan(_step_ir(), contract=_contract(frames=[
+            {"name": "lcs", "body": "ghost"}]))
+
+
+def test_a_declared_pose_is_translation_only_and_gets_the_identity_quaternion():
+    frames = plan(_step_ir(), contract=_contract(frames=[
+        {"name": "lcs", "body": "frame", "pose": [1, 2, 3]}]))["frames"]
+    assert frames[0]["pose"] == [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]
+
+
+def test_a_pose_of_the_wrong_length_is_refused():
+    with pytest.raises(StepToIrError, match="pose"):
+        plan(_step_ir(), contract=_contract(frames=[
+            {"name": "lcs", "body": "frame", "pose": [1.0, 2.0]}]))
+
+
+def test_a_non_unit_quaternion_is_refused_instead_of_silently_normalised():
+    with pytest.raises(StepToIrError, match="unit"):
+        plan(_step_ir(), contract=_contract(frames=[
+            {"name": "lcs", "body": "frame", "pose": [0, 0, 0, 0, 0, 0, 2.0]}]))
+
+
+def test_an_anchor_needs_a_body_or_a_frame():
+    with pytest.raises(StepToIrError, match="body.*frame|frame.*body"):
+        plan(_step_ir(), contract=_contract(anchors=[
+            {"name": "fairlead", "kind": "mooring"}]))
+
+
+def test_an_anchor_kind_is_one_of_the_declared_ones():
+    with pytest.raises(StepToIrError, match="banana"):
+        plan(_step_ir(), contract=_contract(anchors=[
+            {"name": "x", "kind": "banana", "body": "frame"}]))
+
+
+def test_an_anchor_resolves_a_frame_reference_to_its_ir_name():
+    anchors = plan(_step_ir(), contract=_contract(
+        frames=[{"name": "pto_lcs", "body": "frame"}],
+        anchors=[{"name": "imu_mount", "kind": "sensor", "body": "frame",
+                  "frame": "pto_lcs", "direction": [1.0, 0.0, 0.0]}]))["anchors"]
+    assert anchors[0]["frame"] == "frame__pto_lcs"
+    assert anchors[0]["name"] == "sensor_frame_imu_mount"
+    assert anchors[0]["direction"] == [1.0, 0.0, 0.0]
+
+
+def test_an_anchor_frame_that_does_not_resolve_is_refused():
+    with pytest.raises(StepToIrError, match="ghost"):
+        plan(_step_ir(), contract=_contract(anchors=[
+            {"name": "x", "kind": "jet", "frame": "ghost"}]))
+
+
+def test_a_sensor_must_declare_its_reading_frame():
+    with pytest.raises(StepToIrError, match="frame"):
+        plan(_step_ir(), contract=_contract(sensors=[
+            {"name": "surge", "type": "imu"}]))
+
+
+def test_a_sensor_frame_resolves_by_local_name_to_the_frame_ir_name():
+    sensors = plan(_step_ir(), contract=_contract(
+        frames=[{"name": "pto_lcs", "body": "frame"}],
+        sensors=[{"name": "surge", "type": "imu", "frame": "pto_lcs",
+                  "rate_hz": 100.0, "topic": "/osc/imu"}]))["sensors"]
+    assert sensors[0]["name"] == "imu_surge"
+    assert sensors[0]["frame"] == "frame__pto_lcs"
+    assert sensors[0]["rate_hz"] == 100.0
+    assert sensors[0]["topic"] == "/osc/imu"
+
+
+def test_a_sensor_can_mount_directly_on_a_body():
+    sensors = plan(_step_ir(), contract=_contract(sensors=[
+        {"name": "surge", "type": "imu", "frame": "shaft"}]))["sensors"]
+    assert sensors[0]["frame"] == "shaft"
+
+
+def test_a_sensor_class_follows_the_schema_pattern():
+    with pytest.raises(StepToIrError, match="sensor class"):
+        plan(_step_ir(), contract=_contract(sensors=[
+            {"name": "x", "type": "IMU!", "frame": "frame"}]))
+
+
+def test_a_sensor_rate_must_be_positive():
+    with pytest.raises(StepToIrError, match="rate_hz"):
+        plan(_step_ir(), contract=_contract(sensors=[
+            {"name": "x", "type": "imu", "frame": "frame", "rate_hz": 0.0}]))
+
+
+def test_the_three_new_sections_are_closed_to_typos():
+    for key in ("frames", "anchors", "sensors"):
+        with pytest.raises(StepToIrError, match="unknown key"):
+            plan(_step_ir(), contract=_contract(**{key: [{"name": "x", "typo": 1}]}))
+
+
+# --------------------------------------------------------------------------- #
 # meta: chiuse come lo schema, cosi' non si inventano campi
 # --------------------------------------------------------------------------- #
 
