@@ -46,6 +46,9 @@ def write_ap242_assembly(
     name: str = "fixture_assembly",
     root_part: str = "frame",
     moving_part: str = "shaft",
+    root_size_mm: tuple = (20.0, 10.0, 5.0),
+    moving_size_mm: tuple = (4.0, 4.0, 60.0),
+    moving_offset_mm: tuple = (50.0, 0.0, 0.0),
 ) -> Path:
     """Write a small but real AP242 assembly and return its path.
 
@@ -90,8 +93,8 @@ def write_ap242_assembly(
         component = shapes.AddComponent(root, definition, TopLoc_Location(transform))
         TDataStd_Name.Set_s(component, TCollection_ExtendedString(part_name))
 
-    _add(root_part, 0.0, 0.0, 0.0, (20.0, 10.0, 5.0))
-    _add(moving_part, 50.0, 0.0, 0.0, (4.0, 4.0, 60.0))
+    _add(root_part, 0.0, 0.0, 0.0, tuple(root_size_mm))
+    _add(moving_part, *moving_offset_mm, tuple(moving_size_mm))
     shapes.UpdateAssemblies()
 
     writer = STEPCAFControl_Writer()
