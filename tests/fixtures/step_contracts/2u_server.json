@@ -1,0 +1,16 @@
+{
+  "device_type": "rack_server",
+  "root": "NAUO1",
+  "density_kg_m3": 2700.0,
+  "material_card": "aluminium",
+  "joints": [
+    {
+      "name": "NAUO2 hinge",
+      "fc_type": "Revolute",
+      "parent": "NAUO1",
+      "child": "NAUO2",
+      "axis": [0.0, 0.0, 1.0],
+      "limits": {"lower": 0.0, "upper": 1.5708, "lower_enabled": true, "upper_enabled": true, "unit": "rad"}
+    }
+  ]
+}

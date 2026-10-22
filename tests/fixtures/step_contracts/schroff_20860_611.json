@@ -1,0 +1,16 @@
+{
+  "device_type": "rack_case",
+  "root": "side_panel_left",
+  "density_kg_m3": 2700.0,
+  "material_card": "aluminium",
+  "joints": [
+    {
+      "name": "front panel hinge",
+      "fc_type": "Revolute",
+      "parent": "side_panel_left",
+      "child": "front_panel",
+      "axis": [0.0, 1.0, 0.0],
+      "limits": {"lower": 0.0, "upper": 1.5708, "lower_enabled": true, "upper_enabled": true, "unit": "rad"}
+    }
+  ]
+}
