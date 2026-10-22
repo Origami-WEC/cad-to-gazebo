@@ -1,0 +1,16 @@
+{
+  "device_type": "planetary_transmission",
+  "root": "sun_gear001",
+  "density_kg_m3": 7850.0,
+  "material_card": "steel",
+  "joints": [
+    {
+      "name": "planet pin revolute",
+      "fc_type": "Revolute",
+      "parent": "sun_gear001",
+      "child": "planet_gear001",
+      "axis": [0.0, 0.0, 1.0],
+      "limits": {"lower": -1.0, "upper": 1.0, "lower_enabled": true, "upper_enabled": true, "unit": "rad"}
+    }
+  ]
+}
