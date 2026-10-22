@@ -115,4 +115,8 @@ jobs:
         # skip) if the kernel is there but broken. The real 36 MB FreeCAD export
         # is not in this repository: that single test skips with an explicit
         # reason unless CAD_TO_GAZEBO_STEP_FIXTURE points at a checkout.
-        run: python -m pytest tests/test_step_import_ocp.py -v
+        # Both kernel suites run here, not just the import front-end: the
+        # bridge's kernel half (`step_to_ir`) only proves itself with OCCT
+        # present -- the contract's LCS/anchors/sensors and the resolved
+        # non-native joints reach the validated IR only in this job.
+        run: python -m pytest tests/test_step_import_ocp.py tests/test_step_to_ir_ocp.py -v

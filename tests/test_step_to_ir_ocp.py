@@ -94,7 +94,37 @@ def test_convert_step_emits_a_valid_v1_manifest(manifest):
     assert document["meta"]["root"] == "frame"
     assert document["meta"]["source_hash"].startswith("sha256:")
     assert [body["name"] for body in document["bodies"]] == ["frame", "shaft"]
-    assert [joint["name"] for joint in document["joints"]] == ["surge_slider"]
+    assert [joint["name"] for joint in document["joints"]] == [
+        "surge_slider", "guide_perpendicularity"]
+
+
+def test_a_non_native_constraint_reaches_the_manifest_frozen(manifest):
+    # Il contratto di esempio dichiara una 'Perpendicular' risolta come Fixed:
+    # nell'IR entra come Fixed, col vincolo d'origine in 'cad_constraint'.
+    document, _ = manifest
+    frozen = next(joint for joint in document["joints"]
+                  if joint["name"] == "guide_perpendicularity")
+    assert frozen["fc_type"] == "Fixed"
+    assert frozen["cad_constraint"] == "Perpendicular"
+    assert frozen["frozen"] is True
+    assert frozen["limits"]["lower"] == frozen["limits"]["upper"] == 0.0
+
+
+def test_the_declared_lcs_anchors_and_sensors_are_in_the_manifest(manifest):
+    # LCS, attacchi e sensori non vengono dal CAD: arrivano dal contratto e
+    # devono attraversare tutto il ponte fino all'IR validato.
+    document, _ = manifest
+    assert [frame["name"] for frame in document["frames"]] == [
+        "frame__surge_axis", "shaft__shaft_tip"]
+    assert document["frames"][0]["body"] == "frame"
+    assert document["frames"][1]["pose"] == [0.4, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    anchors = {anchor["name"]: anchor for anchor in document["anchors"]}
+    assert anchors["sensor_frame_pto_imu"]["frame"] == "frame__surge_axis"
+    assert anchors["sensor_frame_pto_imu"]["direction"] == [1.0, 0.0, 0.0]
+    sensors = {sensor["name"]: sensor for sensor in document["sensors"]}
+    assert sensors["imu_surge"]["frame"] == "frame__surge_axis"
+    assert sensors["imu_surge"]["rate_hz"] == 100.0
+    assert sensors["imu_surge"]["topic"] == "/osc/imu"
 
 
 def test_placings_carry_the_assembly_offsets_in_metres(manifest):

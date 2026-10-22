@@ -48,13 +48,52 @@ Contratto (``--contract``)
           "limits": {"lower": -1.5, "upper": 1.5, "lower_enabled": true,
                      "upper_enabled": true, "unit": "m", "offset_m": 0.0},
           "activated": true
+        },
+        {
+          "name": "rack", "fc_type": "RackPinion",     // tipo non nativo:
+          "resolved_fc_type": "Revolute",              //  risolto a monte...
+          "parent": "hull", "child": "pto_shaft",
+          "axis": [0, 0, 1], "limits": {"lower": -1.0, "upper": 1.0}
+        },
+        {
+          "name": "guide", "fc_type": "Perpendicular", // ...oppure
+          "resolved_fc_type": "Fixed",                 //  congelato fisso
+          "parent": "hull", "child": "pto_shaft"
         }
+      ],
+      "frames": [                                       // LCS dichiarati:
+        {"name": "pto_lcs", "body": "hull",              //  "<body>__<local>"
+         "pose": [0.0, 0.0, 0.0]},                       //  posa 3 o 7 numeri
+        {"name": "shaft_axis", "body": "pto_shaft",
+         "pose": [0, 0, 0.5], "description": "asse di corsa"}
+      ],
+      "anchors": [                                      // punti di attacco
+        {"name": "mooring_fairlead", "kind": "mooring",  // sensor|jet|mooring|other
+         "body": "hull", "pose": [0.5, 0, 0], "direction": [1, 0, 0]}
+      ],
+      "sensors": [                                      // sensori letti in un frame
+        {"name": "heave", "type": "imu", "frame": "pto_lcs",
+         "rate_hz": 50.0, "topic": "/pto/heave"}
       ]
     }
 
 Le chiavi di ``parts`` e di ``skip`` sono i nomi CAD **oppure** i nomi IR
 (sanitizzati): entrambi gli indici esistono, cosi' il contratto resta leggibile
 anche quando il CAD usa spazi o maiuscole.
+
+Le sezioni ``frames``/``anchors``/``sensors`` sono la topologia che il CAD non
+ha: LCS, punti di attacco e sensori si dichiarano, e il ponte li verifica
+**fail-fast** contro i body sopravvissuti (un body rinominato o escluso e' un
+errore, non una sezione che si svuota da sola).  Un riferimento a un frame si
+puo' scrivere col nome locale (``pto_lcs``) o col nome IR (``hull__pto_lcs``).
+
+I cinque ``fc_type`` di FreeCAD Assembly che non sono un DOF libero
+(``Distance``, ``Parallel``, ``Perpendicular``, ``Angle``, ``RackPinion``) vanno
+**risolti a monte** col campo ``resolved_fc_type``: un tipo nativo che ne
+rappresenta il DOF, oppure ``Fixed`` per congelare il vincolo come posa fissa.
+Nell'IR il giunto porta il tipo risolto, il vincolo d'origine in
+``cad_constraint`` e ``frozen`` quando e' stato congelato.  Vedi
+``docs/cad-contract.md``.
 
 Uso
 ---
@@ -77,6 +116,7 @@ import datetime
 import json
 import math
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence
@@ -123,20 +163,54 @@ _JOINT_UNITS = {
     "continuous": "rad",
 }
 
+#: Tipi di giunto di FreeCAD ``Assembly`` che **non** sono nativi: sono vincoli
+#: (o accoppiamenti) fra due corpi, non un grado di liberta' libero. SDF e URDF
+#: un tale giunto non lo sanno esprimere, quindi il contratto deve **risolverlo
+#: a monte** (dichiarando ``resolved_fc_type`` = il tipo nativo equivalente) o
+#: **congelarlo come posa fissa** (``resolved_fc_type: "Fixed"``). Il residuo —
+#: cosa del vincolo originale non sopravvive all'IR — e' documentato per riga in
+#: ``docs/cad-contract.md`` §4.
+NON_NATIVE_JOINT_TYPES = frozenset({
+    "distance", "parallel", "perpendicular", "angle", "rackpinion",
+})
+
+#: Tipi che un ``resolved_fc_type`` (o un ``fc_type`` nativo) puo' usare: sono
+#: quelli con un'immagine SDF/URDF a un solo DOF. Un tipo fuori da qui non ha
+#: una posa fissa equivalente e non e' accettato nemmeno come risoluzione.
+NATIVE_JOINT_TYPES = frozenset({
+    "fixed", "revolute", "continuous", "slider", "prismatic", "cylindrical",
+    "screw", "ball", "spherical", "planar",
+})
+
 #: Chiavi accettate nel contratto.  Chiuse come il meta dell'IR: un refuso in un
 #: contratto deve fallire subito, non essere ignorato.
 CONTRACT_KEYS = frozenset({
     "device_type", "root", "tolerance_mm", "density_kg_m3", "material_card",
-    "skip", "parts", "joints", "source_document",
+    "skip", "parts", "joints", "frames", "anchors", "sensors", "source_document",
 })
 PART_KEYS = frozenset({"density_kg_m3", "material_card", "skip"})
 JOINT_KEYS = frozenset({
-    "name", "label", "fc_type", "type", "parent", "child", "axis", "origin",
-    "limits", "activated", "distance", "distance2",
+    "name", "label", "fc_type", "type", "resolved_fc_type", "parent", "child",
+    "axis", "origin", "limits", "activated", "distance", "distance2",
 })
 LIMIT_KEYS = frozenset({
     "lower", "upper", "lower_enabled", "upper_enabled", "unit", "offset_m",
 })
+
+#: Chiavi del contratto per LCS (``frames``), punti di attacco (``anchors``) e
+#: sensori (``sensors``).  Il CAD e' autorevole per la *geometria*; queste tre
+#: sezioni sono la *topologia dichiarata* (un LCS, un attacco, un sensore non
+#: sono fatti geometrici) e vengono verificate fail-fast contro i body.
+FRAME_KEYS = frozenset({"name", "body", "pose", "description"})
+ANCHOR_KEYS = frozenset({"name", "kind", "body", "frame", "pose", "direction"})
+SENSOR_KEYS = frozenset({"name", "type", "frame", "rate_hz", "pose", "topic", "params"})
+
+#: Classi di attacco ammesse (mirror di ``$defs.anchor.kind`` nello schema IR).
+ANCHOR_KINDS = frozenset({"sensor", "jet", "mooring", "other"})
+
+#: Un tipo di sensore e' una classe, non un nome libero: stesso pattern dello
+#: schema IR (``$defs.sensor.type``).
+_SENSOR_TYPE_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 #: mm^3 -> m^3 e il fattore del tensore d'inerzia (mm^5 -> m^5), applicato
 #: insieme alla densita' per ottenere kg*m^2.
@@ -175,6 +249,25 @@ def load_contract(path: str | Path) -> dict:
         raise StepToIrError("contract %s must be a JSON object" % contract_path)
     _validate_contract(contract, str(contract_path))
     return contract
+
+
+def _section_entries(contract: dict, key: str, item_keys: frozenset) -> List[dict]:
+    """Un elenco del contratto (``frames``/``anchors``/``sensors``) a chiavi chiuse.
+
+    Stessa regola dei ``joints``: un refuso in una chiave e' un errore, non un
+    campo ignorato; la forma si verifica una volta sola, qui.
+    """
+    entries = contract.get(key, [])
+    if not isinstance(entries, list) or any(not isinstance(item, dict) for item in entries):
+        raise StepToIrError("contract %r must be a list of objects" % key)
+    for index, entry in enumerate(entries):
+        extra = sorted(set(entry) - item_keys)
+        if extra:
+            raise StepToIrError(
+                "contract %s[%d] has unknown key(s): %s (known: %s)"
+                % (key, index, ", ".join(extra), ", ".join(sorted(item_keys)))
+            )
+    return entries
 
 
 def _validate_contract(contract: dict, where: str) -> dict:
@@ -224,6 +317,9 @@ def _validate_contract(contract: dict, where: str) -> dict:
                     "contract joints[%d].limits has unknown key(s): %s (known: %s)"
                     % (index, ", ".join(extra), ", ".join(sorted(LIMIT_KEYS)))
                 )
+    _section_entries(contract, "frames", FRAME_KEYS)
+    _section_entries(contract, "anchors", ANCHOR_KEYS)
+    _section_entries(contract, "sensors", SENSOR_KEYS)
     return contract
 
 
@@ -241,6 +337,53 @@ def _density_of(entry: dict, default: float, where: str) -> float:
     if not density > 0:
         raise StepToIrError("%s: density_kg_m3 must be > 0 (got %r)" % (where, density))
     return density
+
+
+#: Identita' SI ``[x, y, z, qx, qy, qz, qw]`` -- la posa di un LCS che coincide
+#: con l'origine del proprio body.
+_IDENTITY7 = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+
+#: Tolleranza sul quaternione dichiarato, la stessa del validator IR.
+_QUATERNION_TOL = 1.0e-6
+
+
+def _pose_of(declared: Any, where: str) -> List[float]:
+    """Posa SI ``[x, y, z, qx, qy, qz, qw]`` dichiarata nel contratto.
+
+    Un LCS o un attacco e' una posa, non una geometria: la si dichiara, non la
+    si deduce.  Sono ammesse due forme: i 3 numeri della sola traslazione (il
+    quaternione resta l'identita') oppure i 7 completi; il quaternione viene
+    normalizzato, e una forma diversa e' un errore secco che dice quale chiave.
+    """
+    if declared is None:
+        return list(_IDENTITY7)
+    if not isinstance(declared, (list, tuple)) or len(declared) not in (3, 7):
+        raise StepToIrError(
+            "%s: pose must be 3 numbers (translation) or 7 ([x,y,z,qx,qy,qz,qw]), "
+            "got %r" % (where, declared))
+    values = [_number_of(value, "%s pose" % where) for value in declared]
+    if len(values) == 3:
+        return values + list(_IDENTITY7[3:])
+    norm = math.sqrt(sum(component * component for component in values[3:]))
+    if norm <= _QUATERNION_TOL:
+        raise StepToIrError("%s: pose quaternion is (near) zero" % where)
+    if abs(norm - 1.0) > _QUATERNION_TOL:
+        # Non si accetta un quaternione non unitario: la normalizzazione
+        # silenziosa nasconderebbe un contratto scritto male.
+        raise StepToIrError(
+            "%s: pose quaternion is not unit (norm %.9f)" % (where, norm))
+    return values
+
+
+def _vec3_of(declared: Any, where: str) -> List[float]:
+    """Vettore a 3 componenti dichiarato (una direzione), normalizzato."""
+    if not isinstance(declared, (list, tuple)) or len(declared) != 3:
+        raise StepToIrError("%s: expected a 3-vector, got %r" % (where, declared))
+    values = [_number_of(value, where) for value in declared]
+    norm = math.sqrt(sum(value * value for value in values))
+    if norm <= 1.0e-12:
+        raise StepToIrError("%s: direction must be non-zero" % where)
+    return [value / norm for value in values]
 
 
 # --------------------------------------------------------------------------- #
@@ -580,6 +723,13 @@ def plan(step_ir: dict, *, contract: Optional[dict] = None,
 
     names = [entry["body"] for entry in kept]
     joints = _convert_joints(contract.get("joints") or [], names)
+    # LCS, attacchi e sensori sono topologia dichiarata: il CAD non li ha.  Si
+    # verificano contro i body sopravvissuti, quindi un body perso dal filtro e'
+    # un errore qui, non una sezione che si svuota da sola.
+    frames = _convert_frames(contract.get("frames") or [], names)
+    frame_index = _frame_index(frames, contract.get("frames") or [])
+    anchors = _convert_anchors(contract.get("anchors") or [], names, frame_index)
+    sensors = _convert_sensors(contract.get("sensors") or [], names, frame_index)
 
     root = contract.get("root")
     if root is not None:
@@ -612,6 +762,9 @@ def plan(step_ir: dict, *, contract: Optional[dict] = None,
         "skipped": skipped_paths,
         "joints": joints,
         "joints_declared": bool(contract.get("joints")),
+        "frames": frames,
+        "anchors": anchors,
+        "sensors": sensors,
     }
 
 
@@ -745,9 +898,9 @@ def convert(step_ir: dict, *, shapes: dict,
         "bodies": bodies,
         "joints": blueprint["joints"],
         "skipped_joints": [],
-        "frames": [],
-        "anchors": [],
-        "sensors": [],
+        "frames": blueprint["frames"],
+        "anchors": blueprint["anchors"],
+        "sensors": blueprint["sensors"],
         "links": [],
     }
 
@@ -771,9 +924,17 @@ def convert(step_ir: dict, *, shapes: dict,
     return document
 
 
-def _limits_of(joint: dict, fc_type: str, where: str) -> dict:
-    """Limiti nel dialetto v1: le unita' si deducono, i numeri si dichiarano."""
+def _limits_of(joint: dict, fc_type: str, where: str, *, frozen: bool = False) -> dict:
+    """Limiti nel dialetto v1: le unita' si deducono, i numeri si dichiarano.
+
+    ``frozen`` (un vincolo non nativo congelato come posa fissa) e' l'unico caso
+    in cui i limiti si possono omettere: una posa rigida non ha una corsa, e
+    scriverne una inventata sarebbe un falso.  Diventano ``0 .. 0``, disabilitati.
+    """
     declared = joint.get("limits")
+    if declared is None and frozen:
+        return {"lower": 0.0, "upper": 0.0, "lower_enabled": False,
+                "upper_enabled": False, "unit": "m", "offset_m": 0.0}
     if not isinstance(declared, dict):
         raise StepToIrError(
             "%s: 'limits' is required (lower/upper, in SI): the bridge does not "
@@ -805,6 +966,43 @@ def _limits_of(joint: dict, fc_type: str, where: str) -> dict:
     return limits
 
 
+def _resolve_joint_type(joint: dict, where: str) -> tuple:
+    """Il tipo nativo con cui il giunto entra nell'IR, e il vincolo d'origine.
+
+    Un ``fc_type`` nativo passa cosi' com'e' (nessun residuo).  Uno dei 5 tipi
+    non nativi (:data:`NON_NATIVE_JOINT_TYPES`) *deve* essere risolto a monte:
+    se il contratto non dichiara ``resolved_fc_type`` ci si ferma, perche' un
+    vincolo non e' un grado di liberta' e il ponte non lo inventa.  La
+    risoluzione e' un tipo nativo libero che ne rappresenta il DOF primario,
+    oppure ``Fixed``: il congelamento della posa (il vincolo non ha un DOF che
+    l'IR possa portare, quindi resta come posa rigida).
+    """
+    declared = joint.get("fc_type") or joint.get("type")
+    if not declared:
+        raise StepToIrError(
+            "%s: 'fc_type' is required (Fixed, Revolute, Slider, "
+            "Cylindrical, Ball, ...)" % where
+        )
+    kind = str(declared).strip()
+    if kind.lower() not in NON_NATIVE_JOINT_TYPES:
+        return kind, None
+    resolved = joint.get("resolved_fc_type")
+    if not resolved:
+        raise StepToIrError(
+            "%s: fc_type %r is a constraint, not a free DOF: resolve it with "
+            "'resolved_fc_type' (a native type, or \"Fixed\" to freeze the pose). "
+            "Non-native types: %s"
+            % (where, kind, ", ".join(sorted(NON_NATIVE_JOINT_TYPES)))
+        )
+    resolved_kind = str(resolved).strip()
+    if resolved_kind.lower() not in NATIVE_JOINT_TYPES:
+        raise StepToIrError(
+            "%s: resolved_fc_type %r is not a native type (%s)"
+            % (where, resolved, ", ".join(sorted(NATIVE_JOINT_TYPES)))
+        )
+    return resolved_kind, kind
+
+
 def _convert_joints(declared: List[dict], names: Iterable[str]) -> List[dict]:
     """Nomina, completa e verifica i giunti dichiarati contro i body sopravvissuti.
 
@@ -812,18 +1010,19 @@ def _convert_joints(declared: List[dict], names: Iterable[str]) -> List[dict]:
     dichiara ``fc_type``, ``parent``, ``child``, ``axis`` e i numeri del
     movimento, il ponte aggiunge cio' che si deduce (l'unita' dal tipo di
     giunto, ``activated``, ``offset_m``) e non aggiunge nulla di inventato.
+
+    Un giunto il cui tipo non e' nativo viene risolto qui
+    (:func:`_resolve_joint_type`): entra nell'IR con il tipo nativo risolto e
+    porta il vincolo d'origine in ``cad_constraint`` (``frozen`` = true quando
+    e' stato congelato come posa fissa), cosi' il residuo e' tracciabile.
     """
     names = set(names)
     taken: set = set()
     joints: List[dict] = []
     for index, joint in enumerate(declared):
         where = "contract joints[%d]" % index
-        fc_type = joint.get("fc_type") or joint.get("type")
-        if not fc_type:
-            raise StepToIrError(
-                "%s: 'fc_type' is required (Fixed, Revolute, Slider, "
-                "Cylindrical, Ball, ...)" % where
-            )
+        fc_type, constraint = _resolve_joint_type(joint, where)
+        frozen = constraint is not None and fc_type.lower() == "fixed"
         parent = naming.sanitize(joint.get("parent") or "")
         child = naming.sanitize(joint.get("child") or "")
         for role, name in (("parent", parent), ("child", child)):
@@ -854,14 +1053,173 @@ def _convert_joints(declared: List[dict], names: Iterable[str]) -> List[dict]:
             "parent": parent,
             "child": child,
             "axis": axis,
-            "limits": _limits_of(joint, fc_type, where),
+            "limits": _limits_of(joint, fc_type, where, frozen=frozen),
             "activated": bool(joint.get("activated", True)),
         }
+        if constraint is not None:
+            # Il vincolo d'origine e' il residuo: resta scritto, cosi' chi legge
+            # l'IR sa che quel DOF non viene da un giunto nativo.
+            record["cad_constraint"] = constraint
+            record["frozen"] = frozen
         for extra in ("origin", "distance", "distance2"):
             if extra in joint:
                 record[extra] = joint[extra]
         joints.append(record)
     return joints
+
+
+def _convert_frames(declared: List[dict], bodies: Iterable[str]) -> List[dict]:
+    """Gli LCS dichiarati: un ``frame`` per ogni LCS, ancorato a un body vivo.
+
+    Il CAD non ha LCS: li dichiara il contratto (nome locale + body + posa).  Il
+    nome IR si compone con il naming condiviso (``<body>__<local>``) e il body
+    dev'essere uno di quelli sopravvissuti -- un body rinominato o rimosso e' un
+    errore secco, non un frame che sparisce in silenzio.
+    """
+    names = set(bodies)
+    taken: set = set()
+    frames: List[dict] = []
+    for index, frame in enumerate(declared):
+        where = "contract frames[%d]" % index
+        body = naming.sanitize(frame.get("body") or "")
+        if body not in names:
+            raise StepToIrError(
+                "%s: body %r is not a body of this model (%s)"
+                % (where, frame.get("body"), ", ".join(sorted(names)))
+            )
+        record: Dict[str, Any] = {
+            "name": naming.unique(
+                naming.frame_name(body, frame.get("name") or ""), taken),
+            "body": body,
+            "pose": _pose_of(frame.get("pose"), where),
+        }
+        if frame.get("description"):
+            record["description"] = str(frame["description"])
+        frames.append(record)
+    return frames
+
+
+def _frame_index(frames: List[dict], declared: List[dict]) -> Dict[str, str]:
+    """Da nome-IR *o* nome locale dichiarato al nome-IR del frame.
+
+    Si riferisce un frame per nome locale (``pto_joint``) o per nome IR
+    (``hull__pto_joint``): il secondo lega anche al body, quindi un body
+    rinominato fa fallire il riferimento invece di puntare altrove.
+    """
+    index: Dict[str, str] = {}
+    for record, source in zip(frames, declared):
+        index[record["name"]] = record["name"]
+        local = naming.sanitize(source.get("name") or "")
+        if local:
+            index.setdefault(local, record["name"])
+    return index
+
+
+def _resolve_ref(ref: str, where: str, what: str, frame_index: Dict[str, str],
+                 names: Iterable[str]) -> str:
+    """Un riferimento a frame: deve esistere fra i frame dichiarati o i body."""
+    if ref in frame_index:
+        return frame_index[ref]
+    if ref in set(names):
+        return ref
+    known = sorted(set(frame_index) | set(names))
+    raise StepToIrError(
+        "%s: %s %r does not name a declared frame or a body of this model (%s)"
+        % (where, what, ref, ", ".join(known))
+    )
+
+
+def _convert_anchors(declared: List[dict], bodies: Iterable[str],
+                     frame_index: Dict[str, str]) -> List[dict]:
+    """I punti di attacco dichiarati (sensore, jet, mooring) e le loro pose.
+
+    Un attacco punta a un body o a un frame; almeno uno dei due dev'essere
+    dichiarato e risolvere, altrimenti non si sa dove sta montato.
+    """
+    names = set(bodies)
+    taken: set = set()
+    anchors: List[dict] = []
+    for index, anchor in enumerate(declared):
+        where = "contract anchors[%d]" % index
+        kind = str(anchor.get("kind") or "").strip().lower()
+        if kind not in ANCHOR_KINDS:
+            raise StepToIrError(
+                "%s: kind %r is not one of %s"
+                % (where, anchor.get("kind"), ", ".join(sorted(ANCHOR_KINDS)))
+            )
+        # 'body' assente e' assente, non un nome di ripiego: il sanitizer
+        # riempirebbe il vuoto con un fallback, che qui sarebbe un body fantasma.
+        body = naming.sanitize(anchor["body"]) if anchor.get("body") else ""
+        frame_ref = naming.sanitize(anchor["frame"]) if anchor.get("frame") else ""
+        if not body and not frame_ref:
+            raise StepToIrError("%s: an anchor needs a 'body' or a 'frame'" % where)
+        if body and body not in names:
+            raise StepToIrError(
+                "%s: body %r is not a body of this model (%s)"
+                % (where, anchor.get("body"), ", ".join(sorted(names)))
+            )
+        record: Dict[str, Any] = {
+            "name": naming.unique(
+                naming.anchor_name(kind, body or frame_ref, anchor.get("name") or ""),
+                taken),
+            "kind": kind,
+            "pose": _pose_of(anchor.get("pose"), where),
+        }
+        if body:
+            record["body"] = body
+        if frame_ref:
+            record["frame"] = _resolve_ref(frame_ref, where, "frame", frame_index, names)
+        if anchor.get("direction") is not None:
+            record["direction"] = _vec3_of(anchor["direction"], "%s direction" % where)
+        anchors.append(record)
+    return anchors
+
+
+def _convert_sensors(declared: List[dict], bodies: Iterable[str],
+                     frame_index: Dict[str, str]) -> List[dict]:
+    """I sensori dichiarati: classe, frame di lettura, frequenza e opzioni.
+
+    Un sensore senza frame non ha una lettura: il frame e' obbligatorio e deve
+    risolvere a un frame dichiarato o a un body.  La classe segue il pattern
+    dello schema (``imu``, ``gps``, ``force_torque``, ...).
+    """
+    names = set(bodies)
+    taken: set = set()
+    sensors: List[dict] = []
+    for index, sensor in enumerate(declared):
+        where = "contract sensors[%d]" % index
+        sensor_type = str(sensor.get("type") or "").strip().lower()
+        if not _SENSOR_TYPE_RE.match(sensor_type):
+            raise StepToIrError(
+                "%s: type %r must be a sensor class matching %s (imu, gps, "
+                "camera, ...)" % (where, sensor.get("type"), _SENSOR_TYPE_RE.pattern)
+            )
+        frame_ref = naming.sanitize(sensor["frame"]) if sensor.get("frame") else ""
+        if not frame_ref:
+            raise StepToIrError(
+                "%s: 'frame' is required: a sensor reads in a frame, and the "
+                "bridge does not invent one" % where
+            )
+        record: Dict[str, Any] = {
+            "name": naming.unique(
+                naming.sensor_name(sensor_type, sensor.get("name") or ""), taken),
+            "type": sensor_type,
+            "frame": _resolve_ref(frame_ref, where, "frame", frame_index, names),
+            "pose": _pose_of(sensor.get("pose"), where),
+        }
+        if sensor.get("rate_hz") is not None:
+            rate = _number_of(sensor["rate_hz"], "%s rate_hz" % where)
+            if rate <= 0:
+                raise StepToIrError("%s: rate_hz must be > 0 (got %r)" % (where, rate))
+            record["rate_hz"] = rate
+        if sensor.get("topic"):
+            record["topic"] = str(sensor["topic"])
+        if sensor.get("params") is not None:
+            if not isinstance(sensor["params"], dict):
+                raise StepToIrError("%s: params must be an object" % where)
+            record["params"] = dict(sensor["params"])
+        sensors.append(record)
+    return sensors
 
 
 def convert_step(step_path: str | Path, *, mesh_root: Optional[str] = None,
