@@ -111,6 +111,9 @@ def test_find_freecadcmd_from_env(tmp_path, monkeypatch):
 
 def test_find_freecadcmd_none_when_absent(monkeypatch):
     monkeypatch.delenv("FREECADCMD", raising=False)
-    # nothing named freecadcmd / FreeCADCmd on PATH in CI
+    # nothing named freecadcmd / FreeCADCmd on PATH in CI, and no absolute
+    # install location (e.g. /Applications/FreeCAD.app) either: the candidates
+    # are absolute paths on macOS, so clearing PATH alone is not enough.
+    monkeypatch.setattr(em, "FREECADCMD_CANDIDATES", ())
     monkeypatch.setattr(em.shutil, "which", lambda _name: None)
     assert em.find_freecadcmd() is None

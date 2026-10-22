@@ -32,6 +32,7 @@ from step_fixtures import find_mechanism_step, write_ap242_assembly, write_ap242
 import ir_schema  # noqa: E402
 import naming  # noqa: E402
 import step_import  # noqa: E402
+import step_to_ir  # noqa: E402
 from step_to_ir import (  # noqa: E402
     StepToIrError,
     _mass_properties,
@@ -188,13 +189,20 @@ def _stl_triangles(path: Path) -> list:
     return triangles
 
 
-def _mesh_volume_mm3(triangles: list) -> float:
+def _mesh_volume_m3(triangles: list) -> float:
+    """Volume della mesh nelle unita' del file (il ponte scrive in metri)."""
     total = 0.0
     for a, b, c in triangles:
         total += (a[0] * (b[1] * c[2] - b[2] * c[1])
                   - a[1] * (b[0] * c[2] - b[2] * c[0])
                   + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6.0
     return abs(total)
+
+
+def _extent_m(triangles: list) -> list:
+    points = [vertex for triangle in triangles for vertex in triangle]
+    return [max(p[axis] for p in points) - min(p[axis] for p in points)
+            for axis in range(3)]
 
 
 def test_the_visual_meshes_are_written_where_the_ir_says(manifest):
@@ -212,8 +220,34 @@ def test_the_mesh_reproduces_the_solid_it_came_from(manifest):
     for body, volume_mm3 in zip(document["bodies"], (FRAME_MM3, SHAFT_MM3)):
         triangles = _stl_triangles(ws / body["solids"][0]["stl_path"])
         assert len(triangles) == 12  # un parallelepipedo: 2 triangoli x 6 facce
-        assert _mesh_volume_mm3(triangles) == pytest.approx(volume_mm3, rel=1e-6)
+        # la mesh e' in metri, come il volume dell'IR
+        assert _mesh_volume_m3(triangles) == pytest.approx(volume_mm3 * 1e-9, rel=1e-6)
         assert body["solids"][0]["num_vertices"] == 8
+
+
+def test_the_mesh_is_in_metres_like_the_ir_it_belongs_to(manifest):
+    # Regressione: le pose erano in m ma le STL in mm, quindi la geometria
+    # usciva 1000 volte piu' grande dell'assemblaggio.  Il frame e' 20x10x5 mm
+    # e il suo CoM e' a (10, 5, 2.5) mm, quindi il box va da 0 a 20 mm in x.
+    document, ws = manifest
+    frame = document["bodies"][0]
+    triangles = _stl_triangles(ws / frame["solids"][0]["stl_path"])
+    assert _extent_m(triangles) == pytest.approx([0.020, 0.010, 0.005], abs=1e-9)
+    xs = [vertex[0] for triangle in triangles for vertex in triangle]
+    assert min(xs) == pytest.approx(0.0, abs=1e-9)
+    assert max(xs) == pytest.approx(0.020, abs=1e-9)
+
+
+def test_a_1000_mm_cube_becomes_one_metre_on_disk(tmp_path):
+    # Il caso piu' semplice da leggere a occhio: 1000 mm devono diventare 1 m.
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
+
+    shape = BRepPrimAPI_MakeBox(1000.0, 1000.0, 1000.0).Shape()
+    path = tmp_path / "cube.stl"
+    step_to_ir._write_stl(shape, path, 0.5, "cubo")
+    triangles = _stl_triangles(path)
+    assert _extent_m(triangles) == pytest.approx([1.0, 1.0, 1.0], abs=1e-9)
+    assert _mesh_volume_m3(triangles) == pytest.approx(1.0, rel=1e-6)
 
 
 def test_no_meshes_means_no_stl_path_but_a_valid_ir(ap242_step, tmp_path):
@@ -305,8 +339,8 @@ def test_multi_solid_meshes_are_distinct_and_reproduce_each_solid(multi_manifest
         target = ws / solid["stl_path"]
         assert target.is_file() and target.stat().st_size > 0
         assert solid["visual_mesh"] == "model://" + solid["stl_path"]
-        assert _mesh_volume_mm3(_stl_triangles(target)) == pytest.approx(
-            volume_mm3, rel=1e-6)
+        assert _mesh_volume_m3(_stl_triangles(target)) == pytest.approx(
+            volume_mm3 * 1e-9, rel=1e-6)
 
 
 def test_single_solid_parts_keep_the_one_solid_output(multi_manifest):

@@ -180,8 +180,15 @@ cp -r "$MWS"/worlds "$STEPWS/worlds"
 import sys
 sys.path.insert(0, '$ROOT/tests')
 from step_fixtures import write_ap242_assembly
+# Dimensioni realistiche in mm (scafo 1.4 x 1.4 x 3.6 m, heave plate 0.4 m sotto):
+# con il rig 20x10x5 mm il volume dello scafo e' 1e-6 m^3 e la soglia della build
+# (0.005 m^3) lo scarta. Il vecchio fixture passava solo perche' le mesh in mm
+# gonfiavano il volume di 10^9.
 write_ap242_assembly('$WORK/fixture_ap242.step',
-                     root_part='hull', moving_part='pto_shaft')
+                     root_part='hull', moving_part='pto_shaft',
+                     root_size_mm=(1400.0, 1400.0, 3600.0),
+                     moving_size_mm=(400.0, 400.0, 600.0),
+                     moving_offset_mm=(700.0, 700.0, -600.0))
 " || fail "generazione del file STEP di collaudo"
 
 "$PY" -m cad.step_to_ir --step "$WORK/fixture_ap242.step" --ws "$STEPWS" \

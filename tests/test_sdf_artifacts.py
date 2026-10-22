@@ -74,24 +74,58 @@ def test_sample_ir_is_schema_valid():
     assert ir_schema.collect_errors(_load(IR_PATH)) == []
 
 
+def _sandbox_ws(root: Path) -> Path:
+    """Workspace di scrittura fuori dai fixture: solo ``meshes/visual`` in link.
+
+    I test di riproducibilita' scrivono nel workspace (anche ``meshes/collision``):
+    farlo dentro ``FIXTURES`` sovrascriverebbe i file tracciati a ogni run.
+    """
+    ws = root / "ws"
+    (ws / "meshes").mkdir(parents=True)
+    (ws / "meshes" / "visual").symlink_to(MESHES / "visual")
+    return ws
+
+
 def test_artifact_is_reproducible_byte_for_byte(tmp_path):
     """One command, run twice, from the committed fixtures: identical bytes."""
-    first = _run(IR_PATH, FIXTURES, tmp_path / "a.json", write_collision=True)
-    second = _run(IR_PATH, FIXTURES, tmp_path / "b.json", write_collision=True)
+    ws = _sandbox_ws(tmp_path)
+    first = _run(IR_PATH, ws, tmp_path / "a.json", write_collision=True)
+    second = _run(IR_PATH, ws, tmp_path / "b.json", write_collision=True)
     assert first == second
     assert first == GOLDEN.read_bytes()
 
 
 def test_collision_mesh_is_reproducible_byte_for_byte(tmp_path):
-    ws_a, ws_b = tmp_path / "ws_a", tmp_path / "ws_b"
-    for ws in (ws_a, ws_b):
-        (ws / "meshes").mkdir(parents=True)
-        (ws / "meshes" / "visual").symlink_to(MESHES / "visual")
+    """Run-to-run: identical bytes in the same environment."""
+    ws_a = _sandbox_ws(tmp_path / "a")
+    ws_b = _sandbox_ws(tmp_path / "b")
     _run(IR_PATH, ws_a, tmp_path / "a.json", write_collision=True)
     _run(IR_PATH, ws_b, tmp_path / "b.json", write_collision=True)
     rel = "meshes/collision/keel__fin_convex.stl"
     assert (ws_a / rel).read_bytes() == (ws_b / rel).read_bytes()
-    assert (ws_a / rel).read_bytes() == (MESHES / "collision" / "keel__fin_convex.stl").read_bytes()
+
+
+def test_collision_mesh_matches_the_committed_solid(tmp_path):
+    """Against the committed file: same solid, not same bytes.
+
+    qhull's output order and its triangulation of coplanar facets change between
+    scipy/qhull releases, so the committed STL is not byte-stable across machines.
+    What must hold everywhere is the solid itself: same vertices, same closed
+    surface, same area.
+    """
+    import numpy as np
+    import trimesh
+    from scipy.spatial import cKDTree
+
+    ws = _sandbox_ws(tmp_path)
+    _run(IR_PATH, ws, tmp_path / "a.json", write_collision=True)
+    got = trimesh.load(ws / "meshes/collision/keel__fin_convex.stl", force="mesh")
+    ref = trimesh.load(MESHES / "collision" / "keel__fin_convex.stl", force="mesh")
+    assert got.is_watertight and ref.is_watertight
+    assert got.area == pytest.approx(ref.area, rel=1e-9)
+    dist, _ = cKDTree(np.asarray(ref.vertices)).query(np.asarray(got.vertices))
+    assert dist.max() <= 1e-9
+    assert len(got.vertices) == len(ref.vertices)
 
 
 def test_committed_artifact_is_in_canonical_form():
