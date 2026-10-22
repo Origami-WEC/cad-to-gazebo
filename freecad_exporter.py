@@ -130,6 +130,26 @@ def _invert(placement):
     return placement.inverse()
 
 
+def _global_placement(obj):
+    """Placement globale di un oggetto, anche quando e' un ``App::Link``.
+
+    In FreeCAD 1.0 ``App::Link`` non espone ``getGlobalPlacement()`` (non e'
+    un GeoFeature lato Python). Per un link il placement globale e' il
+    ``Placement`` del link composto con quello dell'oggetto linkato, risolto
+    ricorsivamente nel proprio documento. Il link di primo livello e' figlio
+    dell'Assembly, la cui pose e' identita': il caso e' verificato sui file
+    che usano link verso FCStd esterni (full_transmission, test/assembly).
+    """
+    if hasattr(obj, "getGlobalPlacement"):
+        return obj.getGlobalPlacement()
+    if obj.TypeId == "App::Link":
+        linked = obj.LinkedObject
+        if linked is None:
+            raise ValueError("App::Link '{}' senza LinkedObject".format(obj.Name))
+        return obj.Placement.multiply(_global_placement(linked))
+    raise TypeError("'{}' ({}) non ha un placement globale".format(obj.Name, obj.TypeId))
+
+
 def _linked_object(obj):
     linked = getattr(obj, "LinkedObject", None)
     if isinstance(linked, tuple) and linked:
@@ -235,7 +255,7 @@ def _add_shape_obj(shape_owner, place_owner, body_pose_inv, density_ctx,
     except mp.DensityError as exc:
         density_errors.append(str(exc))
         return
-    rel = body_pose_inv.multiply(place_owner.getGlobalPlacement())
+    rel = body_pose_inv.multiply(_global_placement(place_owner))
     for i, solid in enumerate(shape.Solids):
         s = solid.copy()
         s.Placement = rel
@@ -279,7 +299,7 @@ def _write_binary_stl(path, vertices, facets):
 
 def _export_body(part_obj, ws, cfg, taken_names, density_errors):
     name = _unique_name(_sanitize(part_obj.Label), taken_names)
-    body_pose_inv = _invert(part_obj.getGlobalPlacement())
+    body_pose_inv = _invert(_global_placement(part_obj))
 
     collected = []
     density_ctx = {}
@@ -354,7 +374,7 @@ def _export_body(part_obj, ws, cfg, taken_names, density_errors):
     return {
         "name": name,
         "label": part_obj.Label,
-        "pose": _pose7(part_obj.getGlobalPlacement()),
+        "pose": _pose7(_global_placement(part_obj)),
         "solids": solids,
         "num_solids": len(solids),
     }
@@ -450,8 +470,8 @@ def _joint_dof_current(joint, fc_type, child_obj, parent_obj):
     """
     c1 = _connector_placement(joint, 1).copy()
     c2 = _connector_placement(joint, 2).copy()
-    c1_w = child_obj.getGlobalPlacement().multiply(c1)
-    c2_w = parent_obj.getGlobalPlacement().multiply(c2)
+    c1_w = _global_placement(child_obj).multiply(c1)
+    c2_w = _global_placement(parent_obj).multiply(c2)
     axis_world = c1_w.Rotation.multVec(App.Vector(0, 0, 1))
     delta = c2_w.Base.sub(c1_w.Base)
     d = delta.dot(axis_world) * MM_TO_M
