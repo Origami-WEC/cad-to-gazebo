@@ -142,6 +142,7 @@ LIMIT_KEYS = frozenset({
 #: insieme alla densita' per ottenere kg*m^2.
 _MM3_TO_M3 = 1e-9
 _MM5_TO_M5 = 1e-15
+_MM_TO_M = 1e-3
 
 _ORTHONORMAL_TOL = 1e-6
 
@@ -402,22 +403,46 @@ def _stl_vertex_count(path: Path, where: str) -> int:
     return len(seen)
 
 
+def _in_metres(shape: Any, where: str) -> Any:
+    """Copia della shape scalata da mm a m (origine fissa).
+
+    Il kernel lavora in mm, ma l'IR e' SI ovunque (``docs/ir-v1.md``): le mesh su
+    disco devono stare in metri come le pose.  Senza questa scala un corpo di
+    100 mm arriva a SDF lungo 100 m, e ``sdf_artifacts`` ne calcola il volume
+    etichettandolo ``m^3``.  La scala si applica a una copia, non alla shape
+    usata per massa e inerzia.
+    """
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
+    from OCP.gp import gp_Pnt, gp_Trsf
+
+    transform = gp_Trsf()
+    transform.SetScale(gp_Pnt(0.0, 0.0, 0.0), _MM_TO_M)
+    builder = BRepBuilderAPI_Transform(shape, transform, True)
+    if not builder.IsDone():  # pragma: no cover - una scala uniforme non fallisce
+        raise StepToIrError("%s: cannot rescale the shape to metres" % where)
+    return builder.Shape()
+
+
 def _write_stl(shape: Any, path: Path, tolerance_mm: float, where: str) -> int:
-    """Tessella il B-rep, ne scrive l'STL binario e restituisce i vertici distinti.
+    """Tessella il B-rep, ne scrive l'STL binario in **metri** e restituisce i vertici distinti.
 
     La shape va **gia'** meshata: in questa build di OCCT ``StlAPI_Writer`` non
     invoca la mesh da solo e scrive un file vuoto (verificato: senza
     ``BRepMesh_IncrementalMesh`` ``Write`` torna ``False`` e lascia 0 byte).
     Il file su disco e' comunque il verdetto finale: la firma di ``Write``
     cambia fra le build, e il conteggio dei vertici si legge da li'.
+
+    La tolleranza di tessellatura resta in mm (come nel contratto) e viene
+    convertita insieme alla geometria.
     """
     from OCP.StlAPI import StlAPI_Writer
 
-    _tessellate(shape, tolerance_mm, where)
+    metres = _in_metres(shape, where)
+    _tessellate(metres, tolerance_mm * _MM_TO_M, where)
     path.parent.mkdir(parents=True, exist_ok=True)
     writer = StlAPI_Writer()
     writer.ASCIIMode = False  # binario: meta' spazio, stessa fedelta'
-    writer.Write(shape, str(path))
+    writer.Write(metres, str(path))
     if not path.is_file() or path.stat().st_size == 0:
         raise StepToIrError("%s: cannot write the mesh to %s" % (where, path))
     return _stl_vertex_count(path, where)

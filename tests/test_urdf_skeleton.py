@@ -22,6 +22,7 @@ The remaining tests hold the contract around that golden file:
 import copy
 import json
 import math
+import os
 import re
 import shutil
 import subprocess
@@ -587,9 +588,31 @@ def test_c4_fixture_emits_the_two_real_joints():
 # --------------------------------------------------------------------------- #
 
 
+_CLI_SANDBOX = None
+
+
+def _cli_sandbox() -> str:
+    """Directory on PYTHONPATH in which the repo is reachable as package ``cad``.
+
+    ``python -m cad.urdf_skeleton`` must not depend on an editable install (the
+    finder is not always active: it failed in the dev venv).  Same pattern as
+    ``test_step_import_ocp``: a symlink ``cad -> repo`` in a private directory.
+    """
+    global _CLI_SANDBOX
+    if _CLI_SANDBOX is None:
+        import tempfile
+
+        _CLI_SANDBOX = tempfile.mkdtemp(prefix="cad-cli-")
+        Path(_CLI_SANDBOX, "cad").symlink_to(
+            Path(us.__file__).resolve().parent, target_is_directory=True)
+    return _CLI_SANDBOX
+
+
 def _run_cli(argv):
+    env = dict(os.environ)
+    env["PYTHONPATH"] = _cli_sandbox()
     return subprocess.run([sys.executable, "-m", "cad.urdf_skeleton"] + argv,
-                          cwd=str(Path(us.__file__).resolve().parent),
+                          cwd=_cli_sandbox(), env=env,
                           capture_output=True, text=True)
 
 
