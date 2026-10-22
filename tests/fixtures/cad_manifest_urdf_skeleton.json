@@ -1,0 +1,433 @@
+{
+  "schema": "cad-to-gazebo/cad-ir/1",
+  "meta": {
+    "generator": "cad.step_to_ir",
+    "emitter_version": "cad-to-gazebo/0.1.0",
+    "source_document": "urdf_skeleton_sample.FCStd",
+    "source_hash": "",
+    "created": "2026-10-21T00:00:00",
+    "units": "SI (m, kg, rad)",
+    "device_type": "generic",
+    "root": "hull",
+    "source_file": ""
+  },
+  "bodies": [
+    {
+      "name": "hull",
+      "label": "Hull",
+      "pose": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "solids": [
+        {
+          "name": "hull_body",
+          "pose": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "density_kg_m3": 2700.0,
+          "reference_mass_kg": 12.0,
+          "material": {
+            "card": "Aluminium",
+            "diffuse": [
+              0.7,
+              0.7,
+              0.75,
+              1.0
+            ],
+            "ambient": [
+              0.7,
+              0.7,
+              0.75,
+              1.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "pto_shaft",
+      "label": "PTO shaft",
+      "pose": [
+        0.0,
+        0.0,
+        0.4,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "solids": [
+        {
+          "name": "pto_shaft_body",
+          "pose": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "density_kg_m3": 7850.0,
+          "reference_mass_kg": 2.4,
+          "material": {
+            "card": "Steel",
+            "diffuse": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ],
+            "ambient": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "keel",
+      "label": "Keel",
+      "pose": [
+        0.0,
+        0.0,
+        -0.4,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "solids": [
+        {
+          "name": "keel_body",
+          "pose": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "density_kg_m3": 2700.0,
+          "reference_mass_kg": 5.0,
+          "material": {
+            "card": "Aluminium",
+            "diffuse": [
+              0.7,
+              0.7,
+              0.75,
+              1.0
+            ],
+            "ambient": [
+              0.7,
+              0.7,
+              0.75,
+              1.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "flap",
+      "label": "Flap",
+      "pose": [
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "solids": [
+        {
+          "name": "flap_body",
+          "pose": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "density_kg_m3": 2700.0,
+          "reference_mass_kg": 0.8,
+          "material": {
+            "card": "Aluminium",
+            "diffuse": [
+              0.7,
+              0.7,
+              0.75,
+              1.0
+            ],
+            "ambient": [
+              0.7,
+              0.7,
+              0.75,
+              1.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "rotor",
+      "label": "Rotor",
+      "pose": [
+        0.0,
+        0.6,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "solids": [
+        {
+          "name": "rotor_body",
+          "pose": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "density_kg_m3": 7850.0,
+          "reference_mass_kg": 1.2,
+          "material": {
+            "card": "Steel",
+            "diffuse": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ],
+            "ambient": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "piston",
+      "label": "Piston",
+      "pose": [
+        0.0,
+        -0.6,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "solids": [
+        {
+          "name": "piston_body",
+          "pose": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "density_kg_m3": 7850.0,
+          "reference_mass_kg": 3.1,
+          "material": {
+            "card": "Steel",
+            "diffuse": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ],
+            "ambient": [
+              0.6,
+              0.6,
+              0.6,
+              1.0
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "joints": [
+    {
+      "name": "pto_joint",
+      "fc_type": "Slider",
+      "parent": "hull",
+      "child": "pto_shaft",
+      "origin": [
+        0.0,
+        0.0,
+        0.4,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "activated": true,
+      "limits": {
+        "lower": -0.6,
+        "upper": 0.6,
+        "lower_enabled": true,
+        "upper_enabled": true,
+        "unit": "m",
+        "offset_m": 0.4
+      }
+    },
+    {
+      "name": "keel_joint",
+      "fc_type": "Fixed",
+      "parent": "hull",
+      "child": "keel",
+      "origin": [
+        0.0,
+        0.0,
+        -0.4,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "activated": true,
+      "limits": {
+        "lower": 0.0,
+        "upper": 0.0,
+        "lower_enabled": false,
+        "upper_enabled": false,
+        "unit": "m",
+        "offset_m": 0.0
+      }
+    },
+    {
+      "name": "hinge_joint",
+      "fc_type": "Revolute",
+      "parent": "hull",
+      "child": "flap",
+      "origin": [
+        0.5,
+        0.0,
+        0.0,
+        0.25881904510252074,
+        0.0,
+        0.0,
+        0.9659258262890683
+      ],
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "activated": true,
+      "effort": 120.0,
+      "velocity": 3.5,
+      "limits": {
+        "lower": -0.3,
+        "upper": 0.3,
+        "lower_enabled": true,
+        "upper_enabled": true,
+        "unit": "rad",
+        "offset_m": 0.0
+      }
+    },
+    {
+      "name": "spin_joint",
+      "fc_type": "Revolute",
+      "parent": "hull",
+      "child": "rotor",
+      "origin": [
+        0.0,
+        0.6,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "activated": true,
+      "limits": {
+        "lower": 0.0,
+        "upper": 0.0,
+        "lower_enabled": false,
+        "upper_enabled": false,
+        "unit": "rad",
+        "offset_m": 0.0
+      }
+    },
+    {
+      "name": "piston_joint",
+      "fc_type": "Cylindrical",
+      "parent": "hull",
+      "child": "piston",
+      "origin": [
+        0.0,
+        -0.6,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "axis": [
+        0.0,
+        2.0,
+        0.0
+      ],
+      "activated": true,
+      "limits": {
+        "lower": -0.25,
+        "upper": 0.25,
+        "lower_enabled": true,
+        "upper_enabled": true,
+        "unit": "m",
+        "offset_m": 0.0
+      }
+    }
+  ],
+  "frames": [],
+  "anchors": [],
+  "sensors": [],
+  "skipped_joints": []
+}
