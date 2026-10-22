@@ -224,3 +224,35 @@ def test_material_colors_from_shape_material():
 def test_material_colors_fallback_override():
     info = mp.material_colors(None, fallback={"diffuse": [1.0, 0.0, 0.0, 1.0]})
     assert info["diffuse"] == [1.0, 0.0, 0.0, 1.0]
+
+
+def test_unitless_quantity_above_physical_max_is_kg_m3_not_kg_mm3():
+    """Card scritta senza unita' (35 = schiuma poliuretanica 35 kg/m^3).
+
+    Letta come kg/mm^3 darebbe 3.5e10 kg/m^3 e masse da 8e9 kg. Un valore
+    impossibile in kg/mm^3 deve essere letto come kg/m^3.
+    """
+    from material_props import normalize_density
+
+    class _Q:
+        def __init__(self, value):
+            self.Value = value
+            self.UserString = ""
+
+    res = normalize_density(_Q(35.0), label="polyuretane")
+    assert res.density_kg_m3 == 35.0
+    assert res.converted is False
+    assert any("fuori range" in w for w in res.warnings)
+
+
+def test_unitless_quantity_steel_still_converted_from_kg_mm3():
+    from material_props import normalize_density
+
+    class _Q:
+        def __init__(self, value):
+            self.Value = value
+            self.UserString = ""
+
+    res = normalize_density(_Q(7.8e-06), label="steel")
+    assert abs(res.density_kg_m3 - 7800.0) < 1e-6
+    assert res.converted is True

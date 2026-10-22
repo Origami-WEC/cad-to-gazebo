@@ -27,6 +27,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from typing import List, Optional
 
 if __package__ in (None, ""):
@@ -102,9 +103,48 @@ def _mtime_ns(path: str) -> Optional[int]:
         return None
 
 
+FREECAD_SITE_DIRNAME = ".freecad_site"
+
+
+def freecad_extra_site(ws: str) -> Optional[str]:
+    """Cartella con pacchetti extra per il Python di FreeCAD (es. jsonschema).
+
+    FREECAD_EXTRA_SITE ha la precedenza; altrimenti <ws>/.freecad_site se esiste.
+    Creata da ``make freecad-deps``. Non tocca l'installazione di FreeCAD.
+    """
+    env = os.environ.get("FREECAD_EXTRA_SITE")
+    if env:
+        return os.path.abspath(env)
+    local = os.path.join(ws, FREECAD_SITE_DIRNAME)
+    return local if os.path.isdir(local) else None
+
+
+def _freecad_bootstrap(script: str, extra_site: Optional[str]) -> str:
+    """File temporaneo eseguito da freecadcmd: aggiunge extra_site a sys.path.
+
+    freecadcmd ignora PYTHONPATH, quindi il path va inserito dentro il processo.
+    """
+    lines = ["import sys, runpy"]
+    if extra_site:
+        lines.append("sys.path.insert(0, {!r})".format(extra_site))
+    lines.append("sys.argv = [{!r}]".format(script))
+    lines.append("runpy.run_path({!r}, run_name='__main__')".format(script))
+    fd, path = tempfile.mkstemp(prefix="fc_boot_", suffix=".py")
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines) + "\n")
+    return path
+
+
 def export_from_freecad(ws: str, freecadcmd: str, cad_file: str) -> bool:
     env = dict(os.environ, MARITIME_WS=ws, MARITIME_CAD=cad_file)
-    res = subprocess.run([freecadcmd, os.path.join(ws, EXPORTER)], env=env)
+    boot = _freecad_bootstrap(os.path.join(ws, EXPORTER), freecad_extra_site(ws))
+    try:
+        res = subprocess.run([freecadcmd, boot], env=env)
+    finally:
+        try:
+            os.remove(boot)
+        except OSError:
+            pass
     return res.returncode == 0
 
 
@@ -207,6 +247,7 @@ def export_manifest(ws: Optional[str] = None,
             if not (rewritten and manifest_is_current(manifest_path, cad_hash)):
                 _log("ERRORE: export FreeCAD non ha prodotto un manifest per "
                      "questo CAD (vedi log sopra)")
+                _log("  se il log cita 'jsonschema': make freecad-deps")
                 return 1
     else:
         _log("nessun .FCStd in cad/: modello demo")
