@@ -74,3 +74,14 @@ if "mooring" not in sys.modules:
     _mooring.mooring_build = _build
     sys.modules["mooring"] = _mooring
     sys.modules["mooring.mooring_build"] = _build
+
+# ``simulation.app_config`` shim: ``cad.config_sync.derived_break_tension``
+# reads the standard gravity from the single place maritime_ws defines it.
+if "simulation" not in sys.modules:
+    _sim = types.ModuleType("simulation")
+    _sim.__path__ = []
+    _app = types.ModuleType("simulation.app_config")
+    _app.STANDARD_GRAVITY_M_S2 = 9.81
+    _sim.app_config = _app
+    sys.modules["simulation"] = _sim
+    sys.modules["simulation.app_config"] = _app

@@ -43,7 +43,6 @@ STEP = "step"
 FREECAD_MAGIC = b"PK\x03\x04"           # .FCStd e' uno zip
 STEP_MAGIC = b"ISO-10303-21"           # intestazione ISO 10303-21 (Part 21)
 CONTRACT_ENV = "MARITIME_CONTRACT"
-PREFERRED_FREECAD = "wec_assembly.FCStd"
 
 
 class CadInputError(RuntimeError):
@@ -66,7 +65,12 @@ def sniff_kind(path: str) -> str:
 
 
 def discover(ws: str, explicit: Optional[str] = None) -> Optional[str]:
-    """Trova il CAD da usare. None = nessun CAD (si usa il modello demo)."""
+    """Trova il CAD da usare. None = nessun CAD (si usa il modello demo).
+
+    Unica regola, valida per ogni punto d'ingresso: argomento esplicito >
+    `MARITIME_CAD` > l'unico file CAD in `cad/`. Piu' file e nessuna scelta
+    esplicita e' un errore, mai una preferenza implicita.
+    """
     chosen = explicit or os.environ.get("MARITIME_CAD") or None
     if chosen:
         path = chosen if os.path.isabs(chosen) else os.path.join(ws, chosen)
@@ -83,9 +87,6 @@ def discover(ws: str, explicit: Optional[str] = None) -> Optional[str]:
         return None
     if len(found) == 1:
         return found[0]
-    preferred = [p for p in found if os.path.basename(p) == PREFERRED_FREECAD]
-    if preferred:
-        return preferred[0]
     names = ", ".join(os.path.relpath(p, ws) for p in found)
     raise CadInputError(
         "piu' CAD in cad/ ({}): indicarne uno con CAD=<file>".format(names))

@@ -18,8 +18,8 @@ SDF, and it carries the **skeleton and nothing else**:
   ``child`` links, its ``<origin>`` and its ``<axis>``;
 * nothing else: no ``<gazebo>``, no plugin, no ``<transmission>``.
 
-Materials, PBR, collision geometry and inertia belong to the SDF artefact
-(``cad.sdf_artifacts``); physical control of the PTO joint is
+Materials, PBR, collision geometry and inertia belong to the SDF emitter of
+``maritime_ws`` (``build_simulation``); physical control of the PTO joint is
 ``gz_ros2_control`` reading the SDF plus ``ros_gz_bridge`` -- not this file.
 ``xacro`` is out too: the IR already parameterises, and a template layer would
 be a third representation of the same robot.

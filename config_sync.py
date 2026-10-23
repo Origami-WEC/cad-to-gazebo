@@ -87,7 +87,6 @@ DYNAMICS_KEYS = tuple(DEFAULT_JOINT_DYNAMICS.keys())
 DEFAULT_HEURISTICS = {
     "break_tension_safety_factor": 2.5,
     "max_line_mass_fraction_of_device": 0.05,
-    "gravity_m_s2": 9.81,
 }
 
 BREAK_TENSION_REL_TOL = 0.20
@@ -365,6 +364,8 @@ def body_aabb(body: dict, ws: str) -> Optional[Tuple[List[float], List[float]]]:
         import trimesh
     except ImportError:
         return None
+    import numpy as np
+
     mins = None
     maxs = None
     for solid in body.get("solids") or []:
@@ -384,19 +385,11 @@ def body_aabb(body: dict, ws: str) -> Optional[Tuple[List[float], List[float]]]:
         world = verts @ rot.T + trans
         lo = world.min(axis=0)
         hi = world.max(axis=0)
-        mins = lo if mins is None else np_minimum(mins, lo)
-        maxs = hi if maxs is None else np_maximum(maxs, hi)
+        mins = lo if mins is None else np.minimum(mins, lo)
+        maxs = hi if maxs is None else np.maximum(maxs, hi)
     if mins is None:
         return None
-    return (list(mins), list(maxs))
-
-
-def np_minimum(a, b):
-    return [min(float(x), float(y)) for x, y in zip(a, b)]
-
-
-def np_maximum(a, b):
-    return [max(float(x), float(y)) for x, y in zip(a, b)]
+    return ([float(v) for v in mins], [float(v) for v in maxs])
 
 
 def validate_mooring_geometry(manifest: dict, mooring: dict, ws: str,
@@ -446,9 +439,8 @@ def derived_break_tension(manifest: dict, mooring: dict) -> float:
     heur = mooring.get("heuristics") or {}
     factor = float(heur.get("break_tension_safety_factor",
                             DEFAULT_HEURISTICS["break_tension_safety_factor"]))
-    g = float(heur.get("gravity_m_s2",
-                       DEFAULT_HEURISTICS["gravity_m_s2"]))
-    return factor * total_mass_kg(manifest) * g
+    from simulation.app_config import STANDARD_GRAVITY_M_S2
+    return factor * total_mass_kg(manifest) * STANDARD_GRAVITY_M_S2
 
 
 def _mean_line_length(mooring: dict) -> float:

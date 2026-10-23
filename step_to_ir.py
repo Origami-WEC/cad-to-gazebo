@@ -7,7 +7,7 @@ Perche' esiste
 assemblaggi, placement, volume, bbox.  Non descrive la *fisica* del modello WEC:
 topologia dei giunti, materiali, densita'.  Il contratto IR v1
 (``cad-to-gazebo/cad-ir/1``) invece pretende entrambe, ed e' quello che mangiano
-``cad.sdf_artifacts``, ``cad.config_sync`` e il build di ``maritime_ws``.
+``cad.config_sync`` e il build di ``maritime_ws``.
 
 Questo modulo e' il ponte fra i due, con una divisione di responsabilita'
 esplicita:
@@ -523,7 +523,7 @@ def _stl_vertex_count(path: Path, where: str) -> int:
     Non si contano i nodi del B-rep (che OCCT duplica per faccia) ne' i vertici
     grezzi del file (3 per triangolo): si legge il file e si deduplicano le
     posizioni, cosi' il numero e' quello che vedra' chiunque apra la mesh — la
-    stessa risposta che da' ``trimesh`` in ``sdf_artifacts``.
+    stessa risposta che da' ``trimesh``.
     """
     import struct
 
@@ -551,7 +551,7 @@ def _in_metres(shape: Any, where: str) -> Any:
 
     Il kernel lavora in mm, ma l'IR e' SI ovunque (``docs/ir-v1.md``): le mesh su
     disco devono stare in metri come le pose.  Senza questa scala un corpo di
-    100 mm arriva a SDF lungo 100 m, e ``sdf_artifacts`` ne calcola il volume
+    100 mm arriva a SDF lungo 100 m, e il build ne calcola il volume
     etichettandolo ``m^3``.  La scala si applica a una copia, non alla shape
     usata per massa e inerzia.
     """

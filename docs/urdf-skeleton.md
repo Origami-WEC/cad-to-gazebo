@@ -16,8 +16,8 @@ inertial frame, no mesh reference, no `<visual>`, no `<collision>`, no
 `<material>`, no `<gazebo>`, no `<plugin>`, no `<transmission>`, no `<sensor>`.
 Two artefacts with the same geometry and dynamics would be two things to keep in
 sync; a skeleton cannot drift because it carries nothing that can drift. Dynamics
-and geometry belong to `cad.sdf_artifacts` (`docs/sdf-artifacts.md`) and to the
-SDF gate (`cad.sdf_validate`).
+and geometry belong to the SDF emitter of `maritime_ws` and to the SDF gate
+(`cad.sdf_validate`).
 
 The reason the URDF exists at all is *this* pipeline: `sdformat_urdf` loads an
 SDF file into ROS by translating it, and it only understands URDF's joint
@@ -237,7 +237,7 @@ CAD connects the body or the author says how.
 
 ## 8. Non-goals
 
-* No geometry, no dynamics, no materials: those are `cad.sdf_artifacts`.
+* No geometry, no dynamics, no materials: those are the SDF emitter of `maritime_ws`.
 * No `xacro` macros, no ROS package metadata, no URDF parameters: the emitter
   writes one plain document, and there is one of them.
 * No second naming implementation: names come from the IR, which comes from
