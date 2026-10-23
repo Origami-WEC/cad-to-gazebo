@@ -24,9 +24,7 @@ import subprocess
 
 import numpy as np
 import pytest
-
-from test_real_freecad_export import (
-    FREECADCMD, ROOT, _run_export, _skip_reason)
+from test_real_freecad_export import FREECADCMD, ROOT, _run_export, _skip_reason
 
 GENERATOR = ROOT / "tests" / "fixtures" / "make_pose_assembly.py"
 TOL_M = 1e-6
