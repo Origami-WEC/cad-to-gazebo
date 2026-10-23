@@ -34,12 +34,7 @@ ROOT = Path(__file__).resolve().parent.parent
 CONTRACTS = ROOT / "tests" / "fixtures" / "step_contracts"
 
 #: Radice dei file CAD reali. Sovrascrivibile con ``CAD_STEP_ROOT``.
-STEP_ROOT = Path(
-    os.environ.get(
-        "CAD_STEP_ROOT",
-        "/Users/riccardo/Documents/Cartella/Progetti/Origami/Dispositivo",
-    )
-)
+STEP_ROOT = Path(os.environ.get("CAD_STEP_ROOT", "CAD_STEP_ROOT-non-impostato"))
 
 CASES = [
     (
@@ -64,7 +59,7 @@ CASES = [
 def case(request, tmp_path_factory):
     step_path, contract_path, joint, parent, child = request.param
     if not step_path.is_file():
-        pytest.skip("file STEP assente: %s" % step_path)
+        pytest.skip("file STEP assente (imposta CAD_STEP_ROOT): %s" % step_path)
     ws = tmp_path_factory.mktemp("ws")
     contract = load_contract(contract_path)
     manifest = convert_step(step_path, mesh_root=str(ws), contract=contract,
