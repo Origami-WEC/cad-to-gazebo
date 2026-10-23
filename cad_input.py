@@ -35,9 +35,8 @@ if __package__ in (None, ""):
     if _src not in sys.path:
         sys.path.insert(0, _src)
 
-from ws_root import workspace_root
-
 from cad import export_manifest as em
+from ws_root import workspace_root
 
 FREECAD = "freecad"
 STEP = "step"

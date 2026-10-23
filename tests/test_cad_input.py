@@ -5,7 +5,6 @@ Nessun FreeCAD e nessuna conversione STEP reale: si testano solo le decisioni
 """
 
 import pytest
-
 from cad import cad_input as ci
 
 
