@@ -130,24 +130,35 @@ def _invert(placement):
     return placement.inverse()
 
 
-def _global_placement(obj):
-    """Placement globale di un oggetto, anche quando e' un ``App::Link``.
+def _local_placement(obj, subname=""):
+    """Placement di ``obj`` o di un suo sotto-oggetto, nel frame del PADRE di ``obj``.
 
-    In FreeCAD 1.0 ``App::Link`` non espone ``getGlobalPlacement()`` (non e'
-    un GeoFeature lato Python). Per un link il placement globale e' il
-    ``Placement`` del link composto con quello dell'oggetto linkato, risolto
-    ricorsivamente nel proprio documento. Il link di primo livello e' figlio
-    dell'Assembly, la cui pose e' identita': il caso e' verificato sui file
-    che usano link verso FCStd esterni (full_transmission, test/assembly).
+    Usa ``getSubObject(subname, 3)`` di FreeCAD, che compone TUTTA la catena di
+    trasformazioni lungo il percorso: il Placement di ``obj`` (per un
+    ``App::Link`` e' il posizionamento nell'assieme, con la semantica di
+    ``LinkTransform``), poi quello di ogni gruppo, link annidato e solido
+    attraversato. ``obj.Placement`` da solo non basta: un solido dentro un link
+    vive nel documento linkato e il suo ``getGlobalPlacement()`` ignora il link.
     """
-    if hasattr(obj, "getGlobalPlacement"):
-        return obj.getGlobalPlacement()
-    if obj.TypeId == "App::Link":
-        linked = obj.LinkedObject
-        if linked is None:
-            raise ValueError("App::Link '{}' senza LinkedObject".format(obj.Name))
-        return obj.Placement.multiply(_global_placement(linked))
-    raise TypeError("'{}' ({}) non ha un placement globale".format(obj.Name, obj.TypeId))
+    placement = obj.getSubObject(subname, 3)
+    if placement is None:
+        raise ValueError("sotto-oggetto '{}' non risolvibile in '{}'"
+                         .format(subname, obj.Name))
+    return placement
+
+
+def _global_placement(obj):
+    """Placement globale (frame del documento radice) di un componente.
+
+    Componente = figlio dell'Assembly o ``App::Part``/``App::Link`` di primo
+    livello. Il Placement locale (``_local_placement``) e' composto con quello
+    dei GeoFeatureGroup padre (l'Assembly).
+    """
+    local = _local_placement(obj)
+    parent = obj.getParentGeoFeatureGroup()
+    if parent is not None:
+        return _global_placement(parent).multiply(local)
+    return local
 
 
 def _linked_object(obj):
@@ -223,29 +234,48 @@ def _material_info(obj, density_ctx):
     return res, info
 
 
-def _iter_solids(container, body_pose_inv, density_ctx, collected,
-                 density_errors):
+def _children(container):
+    """Figli attraversabili di ``container``; per un ``App::Link`` quelli del target."""
+    if container.TypeId == "App::Link":
+        target = _linked_object(container)
+        return list(getattr(target, "Group", [])) if target is not None else []
+    return list(getattr(container, "Group", []))
+
+
+def _iter_solids(component, container, subpath, density_ctx, collected,
+                 export_errors):
+    """Raccoglie i solidi sotto ``container`` (a partire dal ``component``).
+
+    ``subpath`` e' il percorso (``"Child.Sub."``) da ``component`` a
+    ``container``: la posa di ogni solido e' ``component.getSubObject(percorso)``
+    e quindi comprende i link attraversati. La posa e' poi espressa nel frame
+    del componente (``inv(Placement del componente) * posa``).
+    """
     ctx = dict(density_ctx or {})
     _density_ctx_push(ctx, container)
-    for child in getattr(container, "Group", []):
+    for child in _children(container):
+        path = subpath + child.Name + "."
         if child.TypeId in ("App::Part", "App::DocumentObjectGroup",
                             "App::LinkGroup"):
-            _iter_solids(child, body_pose_inv, ctx, collected, density_errors)
+            _iter_solids(component, child, path, ctx, collected, export_errors)
             continue
         if child.TypeId == "App::Link":
             linked = _linked_object(child)
-            target = linked if linked is not None and hasattr(linked, "Shape") \
-                else None
-            if target is not None:
-                _add_shape_obj(target, child, body_pose_inv, ctx,
-                               collected, density_errors)
+            if linked is None:
+                continue
+            if hasattr(linked, "Shape"):
+                _add_shape_obj(component, linked, child, path, ctx, collected,
+                               export_errors)
+            else:
+                _iter_solids(component, child, path, ctx, collected,
+                             export_errors)
             continue
-        _add_shape_obj(child, child, body_pose_inv, ctx,
-                       collected, density_errors)
+        _add_shape_obj(component, child, child, path, ctx, collected,
+                       export_errors)
 
 
-def _add_shape_obj(shape_owner, place_owner, body_pose_inv, density_ctx,
-                   collected, density_errors):
+def _add_shape_obj(component, shape_owner, place_owner, path, density_ctx,
+                   collected, export_errors):
     shape = getattr(shape_owner, "Shape", None)
     if shape is None or shape.isNull() or not shape.Solids:
         return
@@ -253,12 +283,16 @@ def _add_shape_obj(shape_owner, place_owner, body_pose_inv, density_ctx,
     try:
         res, material = _material_info(shape_owner, density_ctx)
     except mp.DensityError as exc:
-        density_errors.append(str(exc))
+        export_errors.append(str(exc))
         return
-    rel = body_pose_inv.multiply(_global_placement(place_owner))
+    rel = _invert(_local_placement(component)).multiply(
+        _local_placement(component, path))
     for i, solid in enumerate(shape.Solids):
         s = solid.copy()
-        s.Placement = rel
+        # rel e' la posa dell'oggetto nel frame del componente; il solido puo'
+        # avere una propria posizione dentro lo Shape (compound): la si conserva.
+        s.Placement = rel.multiply(_invert(shape.Placement)
+                                   .multiply(solid.Placement))
         if not s.isValid():
             _warn("solido non valido in '{}': saltato".format(label))
             continue
@@ -272,6 +306,47 @@ def _add_shape_obj(shape_owner, place_owner, body_pose_inv, density_ctx,
             "density_source": res.source,
             "material": material,
         })
+
+
+def _mesh_centroid(vertices, facets):
+    """Baricentro volumetrico di una mesh chiusa (somma di tetraedri con segno)."""
+    vol = 0.0
+    acc = [0.0, 0.0, 0.0]
+    for tri in facets:
+        a, b, c = vertices[tri[0]], vertices[tri[1]], vertices[tri[2]]
+        v6 = (a[0] * (b[1] * c[2] - b[2] * c[1])
+              - a[1] * (b[0] * c[2] - b[2] * c[0])
+              + a[2] * (b[0] * c[1] - b[1] * c[0]))
+        vol += v6
+        for k in range(3):
+            acc[k] += v6 * (a[k] + b[k] + c[k])
+    if abs(vol) < 1e-30:
+        return None
+    return [x / (4.0 * vol) for x in acc]
+
+
+def _check_mesh_com(name, verts_m, facets, com_m):
+    """Mesh STL e CoM devono stare nello stesso frame (maritime_ws #33).
+
+    Il baricentro ricostruito dalla mesh deve coincidere con il
+    ``CenterOfMass`` di FreeCAD entro l'1% della diagonale del bounding box
+    (la tessellazione approssima le superfici curve). Altrimenti l'export si
+    ferma: pose, mesh e CoM incoerenti producono un modello fisicamente errato.
+    """
+    centroid = _mesh_centroid(verts_m, facets)
+    if centroid is None:
+        _warn("'{}': mesh senza volume, controllo CoM saltato".format(name))
+        return None
+    lo = [min(v[k] for v in verts_m) for k in range(3)]
+    hi = [max(v[k] for v in verts_m) for k in range(3)]
+    diag = math.sqrt(sum((hi[k] - lo[k]) ** 2 for k in range(3)))
+    err = math.sqrt(sum((centroid[k] - com_m[k]) ** 2 for k in range(3)))
+    if err > max(1e-6, 0.01 * diag):
+        return ("'{}': CoM da mesh ({:.6f}, {:.6f}, {:.6f}) m != CenterOfMass "
+                "FreeCAD ({:.6f}, {:.6f}, {:.6f}) m (scarto {:.6f} m, soglia "
+                "{:.6f} m): mesh e CoM non sono nello stesso frame"
+                .format(name, *centroid, *com_m, err, 0.01 * diag))
+    return None
 
 
 def _write_binary_stl(path, vertices, facets):
@@ -297,14 +372,13 @@ def _write_binary_stl(path, vertices, facets):
             fh.write(struct.pack("<H", 0))
 
 
-def _export_body(part_obj, ws, cfg, taken_names, density_errors):
+def _export_body(part_obj, ws, cfg, taken_names, export_errors):
     name = _unique_name(_sanitize(part_obj.Label), taken_names)
-    body_pose_inv = _invert(_global_placement(part_obj))
 
     collected = []
     density_ctx = {}
-    _iter_solids(part_obj, body_pose_inv, density_ctx, collected,
-                 density_errors)
+    _iter_solids(part_obj, part_obj, "", density_ctx, collected,
+                 export_errors)
     if not collected:
         _warn("body '{}' senza solidi: saltato".format(part_obj.Label))
         return None
@@ -315,6 +389,7 @@ def _export_body(part_obj, ws, cfg, taken_names, density_errors):
 
     solids = []
     taken_solids = set()
+    frame_errors = []
     for item in collected:
         solid_name = _unique_name(_sanitize(item["label"]), taken_solids)
         stl_rel = os.path.join("meshes", "visual",
@@ -336,6 +411,10 @@ def _export_body(part_obj, ws, cfg, taken_names, density_errors):
         mass = volume_m3 * density
         com = shape.CenterOfMass
         com_m = (com.x * MM_TO_M, com.y * MM_TO_M, com.z * MM_TO_M)
+        frame_err = _check_mesh_com("{}__{}".format(name, solid_name),
+                                    verts_m, facets, com_m)
+        if frame_err:
+            frame_errors.append(frame_err)
         moi = shape.MatrixOfInertia
         inertia = [[moi.A11 * MM5_TO_KGM2 * density,
                     moi.A12 * MM5_TO_KGM2 * density,
@@ -370,6 +449,10 @@ def _export_body(part_obj, ws, cfg, taken_names, density_errors):
         _log("{}__{} | rho={} ({}) | m={:.2f} kg | CoM=({:.3f}, {:.3f}, {:.3f}) m"
              .format(name, solid_name, density, item["density_source"],
                      mass, com_m[0], com_m[1], com_m[2]))
+
+    if frame_errors:
+        export_errors.extend("pose/mesh incoerenti: " + e for e in frame_errors)
+        return None
 
     return {
         "name": name,
@@ -606,21 +689,21 @@ def export_wec_cad_pipeline():
     taken = set()
     bodies = []
     fc_to_body = {}
-    density_errors = []
+    export_errors = []
     for fc_name in sorted(components, key=lambda n: components[n].Label):
         obj = components[fc_name]
-        body = _export_body(obj, ws, cfg, taken, density_errors)
+        body = _export_body(obj, ws, cfg, taken, export_errors)
         if body:
             bodies.append(body)
             fc_to_body[fc_name] = body["name"]
 
-    if density_errors:
-        _err("EXPORT INTERROTTO: {} corpo/i senza materiale o densita' "
-             "associati:".format(len(density_errors)))
-        for msg in density_errors:
+    if export_errors:
+        _err("EXPORT INTERROTTO: {} errore/i di materiale o di frame:"
+             .format(len(export_errors)))
+        for msg in export_errors:
             _err("  - " + msg)
-        _err("Assegna la proprieta' Density (float, kg/m^3) sul Body/Part "
-             "oppure una card materiale con modello fisico Density.")
+        _err("Materiale: assegna la proprieta' Density (float, kg/m^3) sul "
+             "Body/Part oppure una card con modello fisico Density.")
         return None
 
     if not bodies:
