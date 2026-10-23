@@ -27,6 +27,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from typing import List, Optional
 
 if __package__ in (None, ""):
@@ -95,9 +96,55 @@ def manifest_is_current(manifest_path: str, cad_hash: str) -> bool:
     return manifest.get("meta", {}).get("source_hash") == cad_hash
 
 
+def _mtime_ns(path: str) -> Optional[int]:
+    try:
+        return os.stat(path).st_mtime_ns
+    except OSError:
+        return None
+
+
+FREECAD_SITE_DIRNAME = ".freecad_site"
+
+
+def freecad_extra_site(ws: str) -> Optional[str]:
+    """Cartella con pacchetti extra per il Python di FreeCAD (es. jsonschema).
+
+    FREECAD_EXTRA_SITE ha la precedenza; altrimenti <ws>/.freecad_site se esiste.
+    Creata da ``make freecad-deps``. Non tocca l'installazione di FreeCAD.
+    """
+    env = os.environ.get("FREECAD_EXTRA_SITE")
+    if env:
+        return os.path.abspath(env)
+    local = os.path.join(ws, FREECAD_SITE_DIRNAME)
+    return local if os.path.isdir(local) else None
+
+
+def _freecad_bootstrap(script: str, extra_site: Optional[str]) -> str:
+    """File temporaneo eseguito da freecadcmd: aggiunge extra_site a sys.path.
+
+    freecadcmd ignora PYTHONPATH, quindi il path va inserito dentro il processo.
+    """
+    lines = ["import sys, runpy"]
+    if extra_site:
+        lines.append("sys.path.insert(0, {!r})".format(extra_site))
+    lines.append("sys.argv = [{!r}]".format(script))
+    lines.append("runpy.run_path({!r}, run_name='__main__')".format(script))
+    fd, path = tempfile.mkstemp(prefix="fc_boot_", suffix=".py")
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines) + "\n")
+    return path
+
+
 def export_from_freecad(ws: str, freecadcmd: str, cad_file: str) -> bool:
     env = dict(os.environ, MARITIME_WS=ws, MARITIME_CAD=cad_file)
-    res = subprocess.run([freecadcmd, os.path.join(ws, EXPORTER)], env=env)
+    boot = _freecad_bootstrap(os.path.join(ws, EXPORTER), freecad_extra_site(ws))
+    try:
+        res = subprocess.run([freecadcmd, boot], env=env)
+    finally:
+        try:
+            os.remove(boot)
+        except OSError:
+            pass
     return res.returncode == 0
 
 
@@ -140,20 +187,43 @@ def validate_manifest(manifest_path: str) -> bool:
     return True
 
 
-def sync_configs(ws: str, write_mooring_derived: bool) -> None:
-    from cad import config_sync
+def sync_configs(ws: str, write_mooring_derived: bool) -> bool:
+    """Allinea pipeline/hydro/mooring al manifest. False = errore, gia' loggato.
 
-    report = config_sync.sync_from_manifest(
-        ws=ws, write=True, write_mooring_derived=write_mooring_derived)
-    report.log()
+    Un'eccezione qui (es. modulo mancante) va riportata come errore leggibile,
+    non come traceback: il chiamante decide l'exit code.
+    """
+    try:
+        from cad import config_sync
+
+        report = config_sync.sync_from_manifest(
+            ws=ws, write=True, write_mooring_derived=write_mooring_derived)
+        report.log()
+        return True
+    except Exception as exc:  # noqa: BLE001 - riportato all'utente, non nascosto
+        _log("ERRORE config_sync: {}: {}".format(type(exc).__name__, exc))
+        return False
 
 
 def export_manifest(ws: Optional[str] = None,
                     cad_file: Optional[str] = None,
                     force: bool = False,
                     write_mooring_derived: bool = False) -> int:
+    """Esporta il manifest dal FCStd (o demo se non c'e' alcun CAD).
+
+    Regole (niente fallback silenziosi):
+      * CAD esplicito (argomento o MARITIME_CAD) inesistente -> errore;
+      * CAD presente ma FreeCAD assente -> errore, a meno che il manifest sia
+        gia' allineato all'hash del CAD (in tal caso nulla da fare);
+      * export riuscito solo se il manifest riporta l'hash del CAD: il exit
+        code di freecadcmd non basta (Python eccezioni -> exit 0).
+    """
     ws = os.path.abspath(ws or workspace_root())
     manifest_path = os.path.join(ws, MANIFEST_REL)
+    explicit = cad_file or os.environ.get("MARITIME_CAD") or None
+    if explicit and not os.path.isfile(explicit):
+        _log("CAD indicato non esiste: {}".format(explicit))
+        return 1
     cad = find_cad_file(ws, cad_file)
 
     if cad is not None:
@@ -164,13 +234,21 @@ def export_manifest(ws: Optional[str] = None,
         else:
             freecadcmd = find_freecadcmd()
             if freecadcmd is None:
-                _log("freecadcmd non trovato: uso manifest esistente (o demo)")
-            else:
-                _log("export da {} ({}...)".format(
-                    os.path.relpath(cad, ws), cad_hash[7:23]))
-                if not export_from_freecad(ws, freecadcmd, cad):
-                    _log("export FreeCAD fallito")
-                    return 1
+                _log("ERRORE: {} richiede FreeCAD (freecadcmd non trovato; "
+                     "imposta FREECADCMD)".format(os.path.relpath(cad, ws)))
+                return 1
+            _log("export da {} ({}...)".format(
+                os.path.relpath(cad, ws), cad_hash[7:23]))
+            mtime_before = _mtime_ns(manifest_path)
+            export_from_freecad(ws, freecadcmd, cad)
+            # Il manifest precedente puo' gia' avere questo hash: serve anche che
+            # il run lo abbia riscritto (exit code e hash da soli non bastano).
+            rewritten = _mtime_ns(manifest_path) not in (None, mtime_before)
+            if not (rewritten and manifest_is_current(manifest_path, cad_hash)):
+                _log("ERRORE: export FreeCAD non ha prodotto un manifest per "
+                     "questo CAD (vedi log sopra)")
+                _log("  se il log cita 'jsonschema': make freecad-deps")
+                return 1
     else:
         _log("nessun .FCStd in cad/: modello demo")
 
@@ -184,7 +262,8 @@ def export_manifest(ws: Optional[str] = None,
         _log("config non allineati: il manifest non supera il validatore IR")
         return 1
 
-    sync_configs(ws, write_mooring_derived=write_mooring_derived)
+    if not sync_configs(ws, write_mooring_derived=write_mooring_derived):
+        return 1
     _log("configurazione allineata a {}".format(
         os.path.relpath(manifest_path, ws)))
     return 0

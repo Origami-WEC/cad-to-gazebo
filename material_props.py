@@ -34,6 +34,10 @@ DENSITY_WARN_MAX = 20000.0
 
 # Sotto questa soglia un float "densita'" e' quasi certamente kg/mm^3.
 KG_MM3_THRESHOLD = 1.0e-2
+# Massima densita' fisica di un solido in kg/mm^3 (~22 g/cm^3, iridio).
+# Un Value di Quantity SENZA unita' sopra questa soglia non puo' essere kg/mm^3:
+# e' quasi certamente gia' in kg/m^3 (card scritta senza unita').
+KG_MM3_PHYSICAL_MAX = 2.3e-5
 
 DENSITY_KEYWORDS = {
     "steel": 7850.0, "acciaio": 7850.0,
@@ -107,7 +111,14 @@ def _quantity_to_si(raw, unit_hint=""):
             note = "Quantity.Value {} {} -> {} kg/m^3".format(
                 raw_f, user or "kg/mm^3", rho)
             return rho, True, note
-        # Value e' SEMPRE kg/mm^3 nelle unita' interne FreeCAD
+        if raw_f > KG_MM3_PHYSICAL_MAX:
+            # Senza unita' e fuori dal range fisico in kg/mm^3: il valore e'
+            # gia' in kg/m^3. Convertirlo x1e9 produrrebbe masse assurde.
+            note = ("Quantity.Value {} senza unita' (> {} kg/mm^3 fisici): "
+                    "letto come kg/m^3, verificare la card").format(
+                raw_f, KG_MM3_PHYSICAL_MAX)
+            return raw_f, False, note
+        # Value e' kg/mm^3 nelle unita' interne FreeCAD
         rho = raw_f / MM3_TO_M3
         note = "Quantity.Value {} {} (interno kg/mm^3) -> {} kg/m^3".format(
             raw_f, user or "?", rho)
