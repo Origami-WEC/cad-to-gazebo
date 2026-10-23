@@ -5,7 +5,6 @@ manifest-is-current check and the CAD / freecadcmd discovery logic.
 """
 
 import json
-import os
 
 from cad import export_manifest as em
 
@@ -62,41 +61,6 @@ def test_manifest_is_current_missing_meta(tmp_path):
     m = tmp_path / "cad_manifest.json"
     m.write_text(json.dumps({"bodies": []}))
     assert em.manifest_is_current(str(m), "sha256:abc") is False
-
-
-# --- find_cad_file -----------------------------------------------------------
-
-def test_find_cad_file_explicit(tmp_path):
-    ws = tmp_path / "ws"
-    ws.mkdir()
-    cad = tmp_path / "explicit.FCStd"
-    cad.write_bytes(b"x")
-    assert em.find_cad_file(str(ws), explicit=str(cad)) == os.path.abspath(str(cad))
-
-
-def test_find_cad_file_from_env(tmp_path, monkeypatch):
-    ws = tmp_path / "ws"
-    ws.mkdir()
-    cad = tmp_path / "env.FCStd"
-    cad.write_bytes(b"x")
-    monkeypatch.setenv("MARITIME_CAD", str(cad))
-    assert em.find_cad_file(str(ws)) == os.path.abspath(str(cad))
-
-
-def test_find_cad_file_in_workspace(tmp_path, monkeypatch):
-    monkeypatch.delenv("MARITIME_CAD", raising=False)
-    ws = tmp_path / "ws"
-    (ws / "cad").mkdir(parents=True)
-    cand = ws / "cad" / "wec_assembly.FCStd"
-    cand.write_bytes(b"x")
-    assert em.find_cad_file(str(ws)) == os.path.abspath(str(cand))
-
-
-def test_find_cad_file_absent(tmp_path, monkeypatch):
-    monkeypatch.delenv("MARITIME_CAD", raising=False)
-    ws = tmp_path / "ws"
-    ws.mkdir()
-    assert em.find_cad_file(str(ws)) is None
 
 
 # --- find_freecadcmd ---------------------------------------------------------

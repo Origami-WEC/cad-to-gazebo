@@ -181,10 +181,8 @@ def create_demo_model(force=False):
         print("[ATTENZIONE] config_sync non riuscito: {}".format(exc))
 
     total = sum(b["solids"][0]["reference_mass_kg"] for b in manifest["bodies"])
-    disp = total / 1025.0
     print("[demo] Modello dimostrativo creato (hull + pto_shaft + pto_joint).")
-    print("[demo] Massa totale {:.1f} kg -> volume dislocato {:.3f} m^3"
-          .format(total, disp))
+    print("[demo] Massa totale {:.1f} kg".format(total))
     print("[demo] ATTENZIONE: modello placeholder per collaudo pipeline,")
     print("[demo] sostituire con l'assieme FreeCAD reale (cad/).")
     return 0

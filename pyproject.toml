@@ -28,9 +28,8 @@ dependencies = [
 # Marker extra for the CAD-export layer. FreeCAD itself is not installable from
 # PyPI, so this extra only pulls the pure-Python mesh helpers the export/demo
 # paths need; the exporter imports FreeCAD lazily and fails only when used.
-# `scipy` is the qhull binding `cad.sdf_artifacts` uses for convex collision
-# hulls: without it C4 still runs but degrades the hull rung to `mesh` (and the
-# artefact records that), so it ships with the layer that produces the meshes.
+# `scipy` is the qhull binding behind `trimesh.convex_hull`, which the
+# maritime_ws build uses for collision hulls and volume checks.
 freecad = ["trimesh>=3.20", "scipy>=1.9"]
 # Headless STEP front-end (`cad.step_import`): the OCCT kernel bindings. Not a
 # core dependency -- the module imports OCP lazily, so the rest of the package

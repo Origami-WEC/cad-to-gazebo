@@ -57,9 +57,6 @@ pinned in three places:
   SDF ↔ URDF ↔ ROS name mapping and the sanitisation rules. One implementation
   (`cad.naming.sanitize`), no second variant: `freecad_exporter.py` binds it
   instead of carrying its own.
-* [`docs/sdf-artifacts.md`](docs/sdf-artifacts.md) — the SDF-ready artefact
-  (`cad.sdf_artifacts`): collision-hull ladder, PBR materials, aggregated
-  inertia, frames/anchors, the degradation table and the reproducibility gate.
 * [`docs/urdf-skeleton.md`](docs/urdf-skeleton.md) — the kinematic URDF skeleton
   (`cad.urdf_skeleton`): the only object this repository derives from the IR, the
   joint-type mapping and its escape hatch, and what "equivalent to the IR" means.
@@ -169,7 +166,7 @@ package runs standalone, `tests/conftest.py` supplies a stub for it.
 `step_import.py` (C2) describes the *geometry* of a STEP file:
 `schema: "cad-to-gazebo/step-ir/1"`, with `source`, `units`, `counts`,
 `assemblies`, `parts`. The contract every consumer in the chain reads —
-`config_sync.py`, `sdf_artifacts.py`, `build_simulation.py` in `maritime_ws` —
+`config_sync.py` and `build_simulation.py` in `maritime_ws` —
 is `cad-ir/1` (C3): `meta`, `bodies`, `joints`. They are two different
 documents by design, and `step_to_ir.py` is the one bridge between them:
 
@@ -254,7 +251,7 @@ parent/child edges, same axes, same origins — and **nothing else**: no
 `<transmission>` or `<sensor>` element exists in the output, and the validator
 treats one appearing as an *error*. A skeleton cannot drift from the IR because
 it carries nothing that can drift; geometry and dynamics stay in
-`cad.sdf_artifacts`.
+the SDF emitter of `maritime_ws`.
 
 The IR's CAD vocabulary is collapsed onto URDF's four joint types by a
 documented table (`Fixed`, `Revolute`, `Continuous`, `Slider`/`Prismatic`,

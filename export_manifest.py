@@ -37,7 +37,6 @@ if __package__ in (None, ""):
 
 from ws_root import workspace_root
 
-CAD_CANDIDATES = ("wec_assembly.FCStd", "assembly.FCStd", "assembly_test.FCStd")
 EXPORTER = os.path.join("src", "cad", "freecad_exporter.py")
 DEMO = os.path.join("src", "cad", "create_demo_model.py")
 MANIFEST_REL = os.path.join("config", "cad_manifest.json")
@@ -59,19 +58,6 @@ def _sha256(path: str) -> str:
 
 def _log(msg: str) -> None:
     print("[export] {}".format(msg))
-
-
-def find_cad_file(ws: str, explicit: Optional[str] = None) -> Optional[str]:
-    if explicit and os.path.isfile(explicit):
-        return os.path.abspath(explicit)
-    env = os.environ.get("MARITIME_CAD")
-    if env and os.path.isfile(env):
-        return os.path.abspath(env)
-    for name in CAD_CANDIDATES:
-        path = os.path.join(ws, "cad", name)
-        if os.path.isfile(path):
-            return path
-    return None
 
 
 def find_freecadcmd() -> Optional[str]:
@@ -212,7 +198,8 @@ def export_manifest(ws: Optional[str] = None,
     """Esporta il manifest dal FCStd (o demo se non c'e' alcun CAD).
 
     Regole (niente fallback silenziosi):
-      * CAD esplicito (argomento o MARITIME_CAD) inesistente -> errore;
+      * scelta del CAD: `cad_input.discover` (argomento > MARITIME_CAD > unico
+        file in cad/); CAD esplicito inesistente o ambiguo -> errore;
       * CAD presente ma FreeCAD assente -> errore, a meno che il manifest sia
         gia' allineato all'hash del CAD (in tal caso nulla da fare);
       * export riuscito solo se il manifest riporta l'hash del CAD: il exit
@@ -220,11 +207,17 @@ def export_manifest(ws: Optional[str] = None,
     """
     ws = os.path.abspath(ws or workspace_root())
     manifest_path = os.path.join(ws, MANIFEST_REL)
-    explicit = cad_file or os.environ.get("MARITIME_CAD") or None
-    if explicit and not os.path.isfile(explicit):
-        _log("CAD indicato non esiste: {}".format(explicit))
+    # Un'unica regola di scelta del CAD, condivisa con l'ingresso unico.
+    from cad import cad_input
+    try:
+        cad = cad_input.discover(ws, cad_file)
+        if cad is not None and cad_input.sniff_kind(cad) != cad_input.FREECAD:
+            raise cad_input.CadInputError(
+                "{} non e' un .FCStd: per STEP usa `python -m cad.cad_input`"
+                .format(os.path.relpath(cad, ws)))
+    except cad_input.CadInputError as exc:
+        _log("ERRORE: {}".format(exc))
         return 1
-    cad = find_cad_file(ws, cad_file)
 
     if cad is not None:
         cad_hash = _sha256(cad)

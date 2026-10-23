@@ -57,12 +57,13 @@ def test_discover_single_file_is_picked(tmp_path, monkeypatch):
     assert ci.discover(str(ws)) == str(f)
 
 
-def test_discover_prefers_wec_assembly_among_many(tmp_path, monkeypatch):
+def test_discover_no_implicit_preference_by_name(tmp_path, monkeypatch):
     monkeypatch.delenv("MARITIME_CAD", raising=False)
     ws = _ws(tmp_path)
     _touch(ws / "cad" / "assembly_test.FCStd")
-    canon = _touch(ws / "cad" / "wec_assembly.FCStd")
-    assert ci.discover(str(ws)) == str(canon)
+    _touch(ws / "cad" / "wec_assembly.FCStd")
+    with pytest.raises(ci.CadInputError, match="piu' CAD"):
+        ci.discover(str(ws))
 
 
 def test_discover_ambiguous_is_an_error(tmp_path, monkeypatch):
