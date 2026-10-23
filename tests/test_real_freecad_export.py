@@ -6,9 +6,10 @@ progetto e verifica il manifest prodotto. Non si fida dell'exit code:
 e' che ``config/cad_manifest.json`` esista e superi il validatore IR.
 
 Requisiti (altrimenti il test si salta con il motivo esplicito):
-  * ``freecadcmd`` installato (default: AppImage/bundle macOS; override con
-    ``FREECADCMD``);
-  * i file ``.FCStd`` presenti;
+  * ``freecadcmd`` installato (default: bundle macOS sotto ``FREECAD_APP``;
+    override con ``FREECADCMD``);
+  * i file ``.FCStd`` presenti; l'assieme reale si indica con
+    ``CAD_DISPOSITIVO_FCSTD`` (nessun path personale nel repo);
   * ``FREECAD_EXTRA_SITE``: cartella con ``jsonschema`` per il Python incorporato
     di FreeCAD, che non lo include. Senza, l'export si ferma.
 
@@ -35,14 +36,15 @@ EXPORTER = ROOT / "freecad_exporter.py"
 #: Il config/pipeline.json vive nel workspace maritime_ws, sopra src/cad.
 WORKSPACE_PIPELINE = ROOT.parent.parent / "config" / "pipeline.json"
 
+FREECAD_APP = os.environ.get("FREECAD_APP", "/Applications/FreeCAD.app")
 FREECADCMD = os.environ.get(
-    "FREECADCMD", "/Applications/FreeCAD.app/Contents/Resources/bin/freecadcmd")
+    "FREECADCMD", os.path.join(FREECAD_APP, "Contents", "Resources", "bin", "freecadcmd"))
 EXTRA_SITE = os.environ.get("FREECAD_EXTRA_SITE", "")
 
 CAD_DIR = ROOT.parent.parent / "cad"
 CASE_ASSEMBLY_TEST = CAD_DIR / "assembly_test.FCStd"
-CASE_DISPOSITIVO = Path(
-    "/Users/riccardo/Documents/Cartella/Progetti/Origami/Dispositivo/test/assembly.FCStd")
+#: Assieme reale: se ``CAD_DISPOSITIVO_FCSTD`` non e' impostato il test si salta.
+CASE_DISPOSITIVO = Path(os.environ.get("CAD_DISPOSITIVO_FCSTD", "CAD_DISPOSITIVO_FCSTD-non-impostato"))
 
 #: Wrapper che aggiunge ``FREECAD_EXTRA_SITE`` a ``sys.path`` prima dell'export:
 #: ``freecadcmd`` non rispetta ``PYTHONPATH``.

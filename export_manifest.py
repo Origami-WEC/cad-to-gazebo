@@ -41,8 +41,10 @@ EXPORTER = os.path.join("src", "cad", "freecad_exporter.py")
 DEMO = os.path.join("src", "cad", "create_demo_model.py")
 MANIFEST_REL = os.path.join("config", "cad_manifest.json")
 
+_FREECAD_APP = os.environ.get("FREECAD_APP", "/Applications/FreeCAD.app")
+
 FREECADCMD_CANDIDATES = (
-    "/Applications/FreeCAD.app/Contents/Resources/bin/freecadcmd",
+    os.path.join(_FREECAD_APP, "Contents", "Resources", "bin", "freecadcmd"),
     "freecadcmd",
     "FreeCADCmd",
 )
