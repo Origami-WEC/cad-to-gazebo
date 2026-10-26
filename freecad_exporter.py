@@ -88,7 +88,7 @@ def _find_workspace():
         return root
     raise RuntimeError(
         "maritime_ws non trovato: imposta MARITIME_WS oppure mantieni la "
-        "struttura src/cad/freecad_exporter.py dentro il workspace.")
+        "struttura <ws>/<dir>/cad/freecad_exporter.py.")
 
 
 def _read_config(ws):
@@ -592,9 +592,9 @@ def _validate_ir(manifest):
 def _sync_dependent_configs(ws, manifest):
     """Allinea pipeline/hydro/mooring al manifest appena scritto."""
     try:
-        src = os.path.join(ws, "src")
-        if src not in sys.path:
-            sys.path.insert(0, src)
+        parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if parent not in sys.path:
+            sys.path.insert(0, parent)
         from cad import config_sync
         report = config_sync.sync_from_manifest(manifest, ws=ws)
         report.log()
