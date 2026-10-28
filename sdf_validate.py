@@ -156,13 +156,19 @@ def _check_pose(element: ET.Element, where: str, errors: List[str],
 
 
 def _check_link(link: ET.Element, where: str, errors: List[str],
-                warnings: List[str]) -> None:
+                warnings: List[str], static: bool = False) -> None:
     _check_pose(link, where, errors, warnings)
     for tag in ("collision", "visual"):
         for index, shape in enumerate(link.findall(tag)):
             if not list(shape):
                 errors.append("{}.{}[{}]: nessuna geometria".format(
                     where, tag, index))
+    if static:
+        # A <static>true</static> model is not integrated by the physics
+        # engine: SDFormat ignores <inertial> and <collision> for it, so
+        # their absence is the correct description of a visual-only body
+        # (e.g. the gz-waves water surface), not a hygiene defect.
+        return
     if not link.findall("collision"):
         warnings.append("{}: nessun <collision> (il link non collide)".format(
             where))
@@ -313,10 +319,21 @@ def _include_names(model: ET.Element) -> set:
     return names
 
 
+def _is_static(model: ET.Element) -> bool:
+    """True when ``<static>`` is set on the model (SDFormat: no integration).
+
+    ``static`` is inherited by nested models, so the caller passes the
+    parent's verdict down.
+    """
+    raw = _text(model.find("static")).strip().lower()
+    return raw in ("true", "1")
+
+
 def _check_model(model: ET.Element, where: str, errors: List[str],
-                 warnings: List[str]) -> None:
+                 warnings: List[str], static_parent: bool = False) -> None:
     if not model.get("name"):
         errors.append("{}: <model> senza attributo name".format(where))
+    static = static_parent or _is_static(model)
     links = model.findall("link")
     frames = model.findall("frame")
     submodels = model.findall("model")
@@ -352,7 +369,7 @@ def _check_model(model: ET.Element, where: str, errors: List[str],
         lwhere = "{}.link[{}]".format(where, index)
         if not link.get("name"):
             errors.append("{}.0: <link> senza attributo name".format(lwhere))
-        _check_link(link, lwhere, errors, warnings)
+        _check_link(link, lwhere, errors, warnings, static=static)
 
     joints = model.findall("joint")
     joint_names = [joint.get("name") for joint in joints]
@@ -388,7 +405,8 @@ def _check_root(root: ET.Element, errors: List[str],
     for index, model in enumerate(models):
         name = model.get("name")
         _check_model(model, "model[{}]{}".format(
-            index, " '{}'".format(name) if name else ""), errors, warnings)
+            index, " '{}'".format(name) if name else ""), errors, warnings,
+            static_parent=False)
     for index, world in enumerate(worlds):
         if not world.get("name"):
             errors.append("world[{}]: senza attributo name".format(index))

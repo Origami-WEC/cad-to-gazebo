@@ -271,6 +271,36 @@ def test_link_without_collision_is_warning(tmp_path):
     assert any("nessun <collision>" in w for w in sv.collect_warnings(path))
 
 
+
+def test_static_model_needs_no_inertial_nor_collision(tmp_path):
+    """A <static>true</static> model is not integrated: visual-only is valid.
+
+    Regression: the gz-waves water surface is a static, visual-only model; the
+    strict gate used to reject it (maritime_ws#90).
+    """
+    doc = VALID.replace("<model name=\"wec\">",
+                        "<model name=\"wec\">\n    <static>true</static>")
+    path = _write(tmp_path, doc)
+    errors, warnings, _ = sv.check(path, backend="builtin")
+    assert errors == []
+    assert not any("nessun <collision>" in w for w in warnings)
+    assert not any("<inertial> mancante" in w for w in warnings)
+    sv.validate(path, backend="builtin", strict=True)
+
+
+def test_dynamic_model_still_warns_without_collision(tmp_path):
+    """The exemption is scoped to static models, not a general silencing."""
+    doc = VALID.replace(
+        """      <collision name="shaft_col">
+        <geometry><cylinder><radius>0.1</radius><length>1</length></cylinder></geometry>
+      </collision>
+""", "")
+    path = _write(tmp_path, doc)
+    assert any("nessun <collision>" in w for w in sv.collect_warnings(path))
+    with pytest.raises(SdfError):
+        sv.validate(path, backend="builtin", strict=True)
+
+
 # --- backend selection -------------------------------------------------------- #
 
 def test_resolve_backend_auto_follows_availability():
