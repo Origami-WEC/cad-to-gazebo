@@ -14,7 +14,7 @@ manca del tutto il manifest.
 
 Uso
 ---
-  python3 src/cad/export_manifest.py [--force] [--write-mooring-derived]
+  python3 -m cad.export_manifest [--force] [--write-mooring-derived]
   make config
 """
 
@@ -37,8 +37,9 @@ if __package__ in (None, ""):
 
 from ws_root import workspace_root
 
-EXPORTER = os.path.join("src", "cad", "freecad_exporter.py")
-DEMO = os.path.join("src", "cad", "create_demo_model.py")
+_HERE = os.path.dirname(os.path.abspath(__file__))
+EXPORTER = os.path.join(_HERE, "freecad_exporter.py")
+DEMO = os.path.join(_HERE, "create_demo_model.py")
 MANIFEST_REL = os.path.join("config", "cad_manifest.json")
 
 _FREECAD_APP = os.environ.get("FREECAD_APP", "/Applications/FreeCAD.app")
@@ -125,7 +126,7 @@ def _freecad_bootstrap(script: str, extra_site: Optional[str]) -> str:
 
 def export_from_freecad(ws: str, freecadcmd: str, cad_file: str) -> bool:
     env = dict(os.environ, MARITIME_WS=ws, MARITIME_CAD=cad_file)
-    boot = _freecad_bootstrap(os.path.join(ws, EXPORTER), freecad_extra_site(ws))
+    boot = _freecad_bootstrap(EXPORTER, freecad_extra_site(ws))
     try:
         res = subprocess.run([freecadcmd, boot], env=env)
     finally:
@@ -137,7 +138,7 @@ def export_from_freecad(ws: str, freecadcmd: str, cad_file: str) -> bool:
 
 
 def export_demo(ws: str, force: bool) -> bool:
-    cmd = [sys.executable, os.path.join(ws, DEMO)]
+    cmd = [sys.executable, DEMO]
     if force:
         cmd.append("--force")
     return subprocess.run(cmd).returncode == 0

@@ -44,9 +44,9 @@ contano solo ``bodies[]`` e ``joints[]``.
 
 Uso
 ---
-  python3 src/cad/config_sync.py
-  python3 src/cad/config_sync.py --write-mooring-derived
-  python3 src/cad/config_sync.py --manifest PATH --ws PATH
+  python3 -m cad.config_sync
+  python3 -m cad.config_sync --write-mooring-derived
+  python3 -m cad.config_sync --manifest PATH --ws PATH
 """
 
 from __future__ import annotations

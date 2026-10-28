@@ -13,7 +13,7 @@ Il file viene creato SOLO se config/cad_manifest.json non esiste gia'.
 
 Geometria demo (metri) -- topologia RM3
 ---------------------------------------
-  hull       : cilindro r=0.70 m, h=3.60 m, asse Z, rho=550
+  hull       : tubo r=0.70 m, foro r=0.45 m, h=3.60 m, asse Z (massa 3043 kg)
   pto_shaft  : piastra r=0.40 m, h=0.30 m (heave plate), rho=2700
   pto_joint  : Slider (prismatic) Z hull -> pto_shaft, corsa [-1.5, 1.5] m
 
@@ -40,7 +40,10 @@ MANIFEST = os.path.join(WS_DIR, "config", "cad_manifest.json")
 HULL_RADIUS = 0.70
 HULL_HEIGHT = 3.60
 HULL_Z_CENTER = -1.20
-HULL_DENSITY = 550.0
+HULL_BORE_RADIUS = 0.45   # foro passante: ospita lo stelo senza compenetrarlo
+# Densita' tale che il tubo abbia la stessa massa del cilindro pieno rho=550:
+# il foro non cambia massa, CoM e galleggiamento (il convex hull resta pieno).
+HULL_DENSITY = 550.0 * HULL_RADIUS ** 2 / (HULL_RADIUS ** 2 - HULL_BORE_RADIUS ** 2)
 
 SHAFT_RADIUS = 0.40
 SHAFT_HEIGHT = 0.30
@@ -90,9 +93,9 @@ def create_demo_model(force=False):
         print("[demo] config/cad_manifest.json gia' presente: nessun modello demo generato.")
         return 0
 
-    hull = trimesh.creation.cylinder(
-        radius=HULL_RADIUS, height=HULL_HEIGHT,
-        sections=64, transform=trimesh.transformations.identity_matrix())
+    hull = trimesh.creation.annulus(
+        r_min=HULL_BORE_RADIUS, r_max=HULL_RADIUS, height=HULL_HEIGHT,
+        sections=64)
     shaft = trimesh.creation.cylinder(radius=SHAFT_RADIUS, height=SHAFT_HEIGHT,
                                       sections=48)
     shaft.apply_translation([0.0, 0.0, SHAFT_Z_CENTER])
